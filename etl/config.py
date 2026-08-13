@@ -29,7 +29,7 @@ RATE_TEST_WINDOW_SECONDS = 65
 
 # ---------------------------------------------------------------- universe (v0.2)
 SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-NDX_URL = "https://en.wikipedia.org/wiki/Nasdaq-100"
+NDX_URL = "https://en.wikipedia.org/wiki/List_of_NASDAQ-100_companies"
 WIKI_USER_AGENT = "market-fundamentals-db universe builder (ptayebati@gmail.com)"
 
 # Sanity bounds — fail loudly if a scrape looks wrong rather than committing garbage.
