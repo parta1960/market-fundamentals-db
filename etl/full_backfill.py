@@ -298,6 +298,13 @@ def main():
         if os.path.exists(p):
             os.remove(p)
 
+    # Weekly refresh: CLEAR_STATE=1 wipes the done markers so every ticker is
+    # re-pulled (catches restatements). Parquet parts are overwritten in place.
+    if os.environ.get("CLEAR_STATE") == "1":
+        for pth in glob.glob(f"{STATE}/*.json"):
+            os.remove(pth)
+        print("CLEAR_STATE=1 — full refresh of all tickers")
+
     done = load_done()
     todo = [t for t in uni.ticker if t not in done]
     print(f"{len(done)} already done, {len(todo)} to fetch "

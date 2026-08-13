@@ -1,6 +1,8 @@
 name: "Full backfill (v0.2)"
 
 on:
+  schedule:
+    - cron: "0 12 * * 0"   # Sundays 12:00 UTC — weekly fundamentals refresh
   workflow_dispatch:
     inputs:
       budget_minutes:
@@ -9,6 +11,9 @@ on:
       max_tickers:
         description: "Optional ticker cap for smoke tests (blank = all)"
         default: ""
+      clear_state:
+        description: "true = re-pull every ticker (full refresh)"
+        default: "false"
 
 permissions:
   contents: write
@@ -44,6 +49,7 @@ jobs:
         env:
           ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
           GIT_AUTOCOMMIT: "1"
+          CLEAR_STATE: ${{ (github.event_name == 'schedule' || github.event.inputs.clear_state == 'true') && '1' || '0' }}
         run: |
           git config user.name "etl-bot"
           git config user.email "actions@github.com"
