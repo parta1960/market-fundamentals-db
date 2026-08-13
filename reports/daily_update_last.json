@@ -1,5 +1,8 @@
 {
   "date": "2026-08-13",
-  "prices_ok": 518,
-  "failed": {}
+  "prices_ok": 516,
+  "failed": {
+    "TPR": "AVError: TIME_SERIES_DAILY_ADJUSTED/TPR: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "TRGP": "AVError: TIME_SERIES_DAILY_ADJUSTED/TRGP: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED."
+  }
 }
