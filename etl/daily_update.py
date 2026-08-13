@@ -48,7 +48,13 @@ def refresh_prices(tickers, budget_end):
             done.append(t)
         except Exception as e:  # noqa: BLE001
             failed[t] = f"{type(e).__name__}: {e}"
-    # one part per ticker-range chunk of 40, replacing older parts wholesale
+    # Safety: only replace the existing prices table if the refresh
+    # succeeded for the overwhelming majority of tickers. Otherwise keep
+    # yesterday's parts intact (a partial delete+rewrite would shrink the
+    # table and the always() commit step would persist the damage).
+    if len(done) < 0.9 * len(tickers):
+        print(f"only {len(done)}/{len(tickers)} refreshed — keeping old parts")
+        return done, failed
     for p in glob.glob(f"{PARQUET}/prices_daily/part_*.parquet"):
         os.remove(p)
     rows = buf["prices_daily"]

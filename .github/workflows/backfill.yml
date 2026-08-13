@@ -1,0 +1,70 @@
+name: "Full backfill (v0.2)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      budget_minutes:
+        description: "Soft time budget (minutes) before clean stop"
+        default: "300"
+      max_tickers:
+        description: "Optional ticker cap for smoke tests (blank = all)"
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write run config from inputs
+        run: |
+          python - <<'EOF'
+          import json
+          budget = float("${{ github.event.inputs.budget_minutes }}" or 300) * 60
+          cfg = {"mode": "full", "chunk_size": 40, "budget_seconds": budget}
+          mt = "${{ github.event.inputs.max_tickers }}".strip()
+          if mt:
+              cfg["max_tickers"] = int(mt)
+          json.dump(cfg, open("etl/run_config.json", "w"))
+          print(cfg)
+          EOF
+
+      - name: Run full backfill
+        env:
+          ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
+          GIT_AUTOCOMMIT: "1"
+        run: |
+          git config user.name "etl-bot"
+          git config user.email "actions@github.com"
+          PYTHONPATH=etl python etl/full_backfill.py
+
+      - name: Publish QA report to run summary
+        if: always()
+        run: cat reports/backfill_qa_v0.2.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Commit results
+        if: always()
+        run: |
+          git config user.name "etl-bot"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "v0.2 full backfill run [skip ci]" || echo "nothing to commit"
+          git push || true
+
+      - name: Upload QA report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backfill-qa-report
+          path: reports/
