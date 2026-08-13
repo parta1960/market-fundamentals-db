@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Market Fundamentals Screener — S&P 500 + Nasdaq-100</title>
+<style>
+  :root {
+    --bg:#0d1117; --surface:#161b22; --border:#30363d;
+    --ink:#e6edf3; --ink2:#9aa4b2; --ink3:#6e7681;
+    --accent:#58a6ff; --pos:#3fb950; --neg:#f85149;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:14px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header { padding:20px 24px 8px; }
+  h1 { font-size:19px; margin:0 0 2px; font-weight:600; }
+  .sub { color:var(--ink2); font-size:12.5px; }
+  .tiles { display:flex; gap:12px; flex-wrap:wrap; padding:14px 24px 4px; }
+  .tile { background:var(--surface); border:1px solid var(--border); border-radius:8px;
+          padding:10px 16px; min-width:130px; }
+  .tile .v { font-size:20px; font-weight:600; }
+  .tile .k { font-size:11.5px; color:var(--ink2); margin-top:1px; }
+  .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:end; padding:12px 24px; }
+  .filters label { display:flex; flex-direction:column; gap:3px; font-size:11.5px; color:var(--ink2); }
+  .filters input, .filters select {
+    background:var(--surface); border:1px solid var(--border); color:var(--ink);
+    border-radius:6px; padding:6px 8px; font-size:13px; width:110px; }
+  .filters input[type=text] { width:170px; }
+  .filters button { background:var(--surface); color:var(--ink2); border:1px solid var(--border);
+    border-radius:6px; padding:7px 11px; font-size:12.5px; cursor:pointer; }
+  .filters button:hover { color:var(--ink); border-color:var(--ink3); }
+  .filters button.preset { color:var(--accent); }
+  .wrap { overflow-x:auto; padding:0 24px 8px; }
+  table { border-collapse:collapse; width:100%; min-width:1080px; }
+  th, td { padding:6px 10px; text-align:right; white-space:nowrap; }
+  th { color:var(--ink2); font-size:11.5px; font-weight:600; cursor:pointer; user-select:none;
+       border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); }
+  th:hover { color:var(--ink); }
+  th.sorted { color:var(--accent); }
+  td { border-bottom:1px solid #21262d; font-variant-numeric:tabular-nums; }
+  td.l, th.l { text-align:left; }
+  td.name { color:var(--ink2); max-width:210px; overflow:hidden; text-overflow:ellipsis; }
+  td.pos { color:var(--pos); }  td.neg { color:var(--neg); }
+  .tick { font-weight:600; }
+  footer { color:var(--ink3); font-size:11.5px; padding:10px 24px 26px; max-width:980px; }
+  footer a { color:var(--accent); text-decoration:none; }
+  #status { padding:24px; color:var(--ink2); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Market Fundamentals Screener</h1>
+  <div class="sub">S&amp;P 500 + Nasdaq-100 · TTM ratios from
+    <a style="color:var(--accent);text-decoration:none"
+       href="https://github.com/parta1960/market-fundamentals-db">market-fundamentals-db</a>
+    · data as of <span id="asof">…</span> · updates weekdays after US close</div>
+</header>
+
+<div class="tiles" id="tiles"></div>
+
+<div class="filters">
+  <label>Search <input type="text" id="q" placeholder="ticker or name"></label>
+  <label>Sector <select id="sector"><option value="">All</option></select></label>
+  <label>Max P/E <input type="number" id="maxpe" placeholder="any"></label>
+  <label>Max P/FCF <input type="number" id="maxpfcf" placeholder="any"></label>
+  <label>Min rev growth % <input type="number" id="minrev" placeholder="any"></label>
+  <label>Min gross margin % <input type="number" id="mingm" placeholder="any"></label>
+  <label>Buybacks <select id="bb"><option value="">Any</option>
+    <option value="y">Shares shrinking</option><option value="3">Down &gt;3% y/y</option></select></label>
+  <button id="clear">Clear</button>
+  <button class="preset" data-p="cheapfcf">Preset: cheap FCF growers</button>
+  <button class="preset" data-p="mb">Preset: margin + buybacks</button>
+</div>
+
+<div class="wrap"><table id="t"><thead></thead><tbody></tbody></table></div>
+<div id="status">Loading data…</div>
+
+<footer>
+  Caveats: dual-class tickers (BRK-B, GOOGL, FOX…) can have distorted per-share metrics;
+  very large growth rates are usually M&amp;A, not organic; a small share of underlying
+  fundamentals are reported in non-USD. Educational screener, not investment advice —
+  verify before acting. Source data, methodology and QA reports:
+  <a href="https://github.com/parta1960/market-fundamentals-db">GitHub repo</a>.
+</footer>
+
+<script>
+const COLS = [
+  ["ticker","Ticker","l"], ["name","Company","l"], ["sector","Sector","l"],
+  ["close","Close",""], ["pe_ttm","P/E",""], ["ps_ttm","P/S",""],
+  ["pfcf_ttm","P/FCF",""], ["pb","P/B",""],
+  ["gross_margin","GM%","pct"], ["op_margin","OM%","pct"], ["net_margin","NM%","pct"],
+  ["rev_yoy","Rev y/y","pctpol"], ["ni_yoy","NI y/y","pctpol"], ["shares_yoy","Shares y/y","pctpol"],
+];
+let rows = [], sortKey = "ticker", sortDir = 1;
+
+const $ = id => document.getElementById(id);
+const fmt = (v, kind) => {
+  if (v === null || v === undefined || Number.isNaN(v)) return "–";
+  if (kind === "pct" || kind === "pctpol") return (v >= 0 && kind === "pctpol" ? "+" : "") + (100*v).toFixed(1) + "%";
+  if (typeof v === "number") return Math.abs(v) >= 1000 ? v.toLocaleString(undefined,{maximumFractionDigits:0}) : v.toFixed(v < 10 ? 2 : 1);
+  return v;
+};
+
+function render() {
+  const q = $("q").value.trim().toUpperCase(), sec = $("sector").value,
+        maxpe = parseFloat($("maxpe").value), maxpfcf = parseFloat($("maxpfcf").value),
+        minrev = parseFloat($("minrev").value), mingm = parseFloat($("mingm").value),
+        bb = $("bb").value;
+  let r = rows.filter(x =>
+    (!q || x.ticker.includes(q) || (x.name||"").toUpperCase().includes(q)) &&
+    (!sec || x.sector === sec) &&
+    (isNaN(maxpe) || (x.pe_ttm > 0 && x.pe_ttm <= maxpe)) &&
+    (isNaN(maxpfcf) || (x.pfcf_ttm > 0 && x.pfcf_ttm <= maxpfcf)) &&
+    (isNaN(minrev) || x.rev_yoy >= minrev/100) &&
+    (isNaN(mingm) || x.gross_margin >= mingm/100) &&
+    (!bb || (bb === "y" ? x.shares_yoy < 0 : x.shares_yoy < -0.03)));
+  r.sort((a,b) => {
+    const va = a[sortKey], vb = b[sortKey];
+    if (va == null) return 1; if (vb == null) return -1;
+    return (va < vb ? -1 : va > vb ? 1 : 0) * sortDir;
+  });
+  $("t").querySelector("thead").innerHTML = "<tr>" + COLS.map(([k,lab,kind]) =>
+    `<th class="${kind==='l'?'l ':''}${k===sortKey?'sorted':''}" data-k="${k}">${lab}${k===sortKey?(sortDir>0?" ↑":" ↓"):""}</th>`).join("") + "</tr>";
+  $("t").querySelector("tbody").innerHTML = r.map(x => "<tr>" + COLS.map(([k,,kind]) => {
+    const v = x[k];
+    let cls = kind === "l" ? "l" : "";
+    if (k === "ticker") cls += " tick"; if (k === "name") cls += " name";
+    if (kind === "pctpol" && typeof v === "number") cls += v >= 0 ? " pos" : " neg";
+    return `<td class="${cls}">${fmt(v, kind)}</td>`; }).join("") + "</tr>").join("");
+  $("status").textContent = `${r.length} of ${rows.length} companies`;
+  document.querySelectorAll("th").forEach(th => th.onclick = () => {
+    const k = th.dataset.k;
+    if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = k === "ticker" || k === "name" || k === "sector" ? 1 : -1; }
+    render();
+  });
+}
+
+const PRESETS = {
+  cheapfcf: () => { $("maxpfcf").value = 20; $("minrev").value = 10; },
+  mb:       () => { $("mingm").value = 40; $("bb").value = "3"; },
+};
+
+fetch("data/latest_ratios.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+.then(d => {
+  rows = d;
+  $("asof").textContent = d[0]?.date || "?";
+  [...new Set(d.map(x => x.sector).filter(Boolean))].sort().forEach(s => {
+    const o = document.createElement("option"); o.value = o.textContent = s; $("sector").appendChild(o); });
+  const med = k => { const v = d.map(x => x[k]).filter(x => typeof x === "number" && x > 0).sort((a,b)=>a-b); return v[v.length>>1]; };
+  $("tiles").innerHTML = [
+    [d.length, "companies"], [med("pe_ttm").toFixed(1), "median P/E (TTM)"],
+    [med("ps_ttm").toFixed(1), "median P/S"], [(100*med("gross_margin")).toFixed(0)+"%", "median gross margin"],
+    [d.filter(x => x.shares_yoy < -0.03).length, "buying back >3%/yr"],
+  ].map(([v,k]) => `<div class="tile"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("");
+  ["q","sector","maxpe","maxpfcf","minrev","mingm","bb"].forEach(id => $(id).oninput = render);
+  $("clear").onclick = () => { ["q","maxpe","maxpfcf","minrev","mingm"].forEach(id => $(id).value = ""); $("sector").value = ""; $("bb").value = ""; render(); };
+  document.querySelectorAll(".preset").forEach(b => b.onclick = () => { $("clear").onclick(); PRESETS[b.dataset.p](); render(); });
+  render();
+})
+.catch(e => { $("status").textContent = "Failed to load data/latest_ratios.json (" + e.message + "). The first daily run after this page was deployed populates it."; });
+</script>
+</body>
+</html>

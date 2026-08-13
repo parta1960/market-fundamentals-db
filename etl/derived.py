@@ -118,8 +118,25 @@ def build():
                 "eps_ttm", "revenue_ttm", "fcf_ttm", "pe_ttm", "ps_ttm",
                 "pfcf_ttm", "pb", "gross_margin", "op_margin", "net_margin",
                 "rev_yoy", "ni_yoy"]
-        r[[c for c in keep if c in r.columns]].to_parquet(
+        comp = _read("companies")
+        if not comp.empty:
+            r = r.merge(comp[["ticker", "name", "sector"]].drop_duplicates("ticker"),
+                        on="ticker", how="left")
+            keep = ["name", "sector"] + keep
+        out_cols = [c for c in keep if c in r.columns]
+        r[out_cols].to_parquet(
             f"{OUT}/latest_ratios.parquet", compression="zstd", index=False)
+        # JSON snapshot for the GitHub Pages screener (same-origin, no CORS)
+        os.makedirs("docs/data", exist_ok=True)
+        shares_yoy = (wide.sort_values(["ticker", "fiscal_date_ending"])
+                          .groupby("ticker")
+                          .apply(lambda g: g.shares.iloc[-1] / g.shares.iloc[-5] - 1
+                                 if len(g) >= 5 and g.shares.iloc[-5] else None,
+                                 include_groups=False)
+                          .rename("shares_yoy").reset_index())
+        rj = r[out_cols].merge(shares_yoy, on="ticker", how="left")
+        rj["date"] = rj["date"].astype(str)
+        rj.round(4).to_json("docs/data/latest_ratios.json", orient="records")
     print(f"derived: {len(wide):,} quarter rows")
 
 
