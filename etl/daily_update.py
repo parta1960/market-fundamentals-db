@@ -48,6 +48,21 @@ def refresh_prices(tickers, budget_end):
             done.append(t)
         except Exception as e:  # noqa: BLE001
             failed[t] = f"{type(e).__name__}: {e}"
+    # One retry pass for transient AV failures (e.g. sporadic 'Invalid API call')
+    for t in list(failed):
+        if time.time() > budget_end:
+            break
+        try:
+            time.sleep(2)
+            px = av_client.fetch("TIME_SERIES_DAILY_ADJUSTED", t,
+                                 AV_MIN_INTERVAL_SECONDS,
+                                 extra={"outputsize": "full"})
+            av_client.save_raw(px, f"{fb.RAW_AV}/{t}_prices.json.gz")
+            buf["prices_daily"] += fb.flatten_prices(px, t)
+            done.append(t)
+            del failed[t]
+        except Exception as e:  # noqa: BLE001
+            failed[t] = f"retry: {type(e).__name__}: {e}"
     # Safety: only replace the existing prices table if the refresh
     # succeeded for the overwhelming majority of tickers. Otherwise keep
     # yesterday's parts intact (a partial delete+rewrite would shrink the
@@ -55,8 +70,19 @@ def refresh_prices(tickers, budget_end):
     if len(done) < 0.9 * len(tickers):
         print(f"only {len(done)}/{len(tickers)} refreshed — keeping old parts")
         return done, failed
-    for p in glob.glob(f"{PARQUET}/prices_daily/part_*.parquet"):
+    old_files = glob.glob(f"{PARQUET}/prices_daily/part_*.parquet")
+    missing = [t for t in tickers if t not in set(done)]
+    carry = pd.DataFrame()
+    if missing and old_files:
+        prev = pd.concat([pd.read_parquet(p) for p in old_files], ignore_index=True)
+        carry = prev[prev.ticker.isin(missing)]
+        print(f"carrying forward yesterday's prices for {sorted(missing)}")
+    for p in old_files:
         os.remove(p)
+    if not carry.empty:
+        os.makedirs(f"{PARQUET}/prices_daily", exist_ok=True)
+        carry.to_parquet(f"{PARQUET}/prices_daily/part_CARRYOVER.parquet",
+                         compression="zstd", index=False)
     rows = buf["prices_daily"]
     for i in range(0, len(done), 40):
         chunk = set(done[i:i + 40])
