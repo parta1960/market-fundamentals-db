@@ -1,8 +1,8 @@
-# Full backfill QA report (v0.2) — 2026-08-13 18:23 UTC
+# Full backfill QA report (v0.2) — 2026-08-13 18:30 UTC
 
 - Universe size: **518**
-- Completed tickers: **517**
-- Failed tickers: **1**
+- Completed tickers: **518**
+- Failed tickers: **0**
 - Run incomplete (budget hit): **False**
 
 ## EDGAR shares coverage
@@ -11,18 +11,14 @@
 - META: **124** share points (v0.1 was META=0, XOM=7)
 - XOM: **15** share points (v0.1 was META=0, XOM=7)
 
-## Failures
-
-- AEP: `HTTPError: 404 Client Error: Not Found for url: https://data.sec.gov/api/xbrl/companyfacts/CIKnan.json`
-
 Full per-ticker census: `reports/coverage_census_v0.2.csv`
 
 ## Aggregate coverage
 
 - Median AV quarters: 81
-- Tickers with >=40 quarters (10y): 487/517
+- Tickers with >=40 quarters (10y): 488/518
 - Median price days: 6735
-- Median EDGAR share points: 281
+- Median EDGAR share points: 282
 
 ## CSCO validation vs Yahoo reference
 
