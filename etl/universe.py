@@ -19,8 +19,8 @@ import pandas as pd
 import requests
 
 import edgar_client
-from config import (NDX_EXPECTED_RANGE, NDX_URL, SP500_EXPECTED_RANGE, SP500_URL,
-                    WIKI_USER_AGENT)
+from config import (CIK_OVERRIDES, NDX_EXPECTED_RANGE, NDX_URL, SP500_EXPECTED_RANGE,
+                    SP500_URL, WIKI_USER_AGENT)
 
 PARQUET = "data/parquet"
 UNIVERSE_DIR = "data/universe"
@@ -87,6 +87,8 @@ def build(as_of: str | None = None) -> pd.DataFrame:
                     ignore_index=True).drop_duplicates("ticker").reset_index(drop=True)
     cik = edgar_client.ticker_to_cik_map()
     uni["cik"] = uni.ticker.map(cik)
+    missing = uni.cik.isna()
+    uni.loc[missing, "cik"] = uni.loc[missing, "ticker"].map(CIK_OVERRIDES)
 
     os.makedirs(PARQUET, exist_ok=True)
     os.makedirs(UNIVERSE_DIR, exist_ok=True)

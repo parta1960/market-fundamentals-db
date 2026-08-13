@@ -55,3 +55,8 @@ SHARES_TAG_SOURCES = [
     ("us-gaap", "WeightedAverageNumberOfSharesOutstandingBasic", "edgar:wavg-basic"),
     ("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding", "edgar:wavg-diluted"),
 ]
+
+# CIKs missing from SEC's company_tickers.json (verified against EDGAR companyfacts).
+CIK_OVERRIDES = {
+    "AEP": "0000004904",  # American Electric Power — absent from ticker file 2026-08-13
+}

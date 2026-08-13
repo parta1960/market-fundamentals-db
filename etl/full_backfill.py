@@ -97,16 +97,22 @@ def av_fallback_shares(balance_payload, ticker):
 
 # ------------------------------------------------------------------ per ticker
 def process_ticker(t, cik, buf):
+    # cik may arrive as NaN (float) from a failed map lookup — only a digit
+    # string is usable (v0.2.2 fix: NaN is truthy, broke AEP in v0.2.1).
+    cik = cik if isinstance(cik, str) and cik.isdigit() else None
     stats = {"ticker": t, "cik": cik}
     filed_index = {}
     shares_rows = []
 
     if cik:
-        facts = edgar_client.fetch_companyfacts(cik)
-        shares_rows = edgar_client.extract_shares_outstanding(facts, t)
-        filed_index = edgar_client.extract_filed_date_index(facts)
-        edgar_client.save_raw_filtered(shares_rows, filed_index,
-                                       f"{RAW_EDGAR}/{t}_extract.json.gz")
+        try:
+            facts = edgar_client.fetch_companyfacts(cik)
+            shares_rows = edgar_client.extract_shares_outstanding(facts, t)
+            filed_index = edgar_client.extract_filed_date_index(facts)
+            edgar_client.save_raw_filtered(shares_rows, filed_index,
+                                           f"{RAW_EDGAR}/{t}_extract.json.gz")
+        except Exception as e:  # noqa: BLE001 — EDGAR failure must not kill AV pull
+            stats["edgar_error"] = f"{type(e).__name__}: {e}"[:200]
     stats["edgar_share_points"] = len(shares_rows)
     stats["edgar_oldest"] = min((r["as_of"] for r in shares_rows), default=None)
 
@@ -164,10 +170,13 @@ def flush_chunk(buf, label):
 def git_autocommit(msg):
     if os.environ.get("GIT_AUTOCOMMIT") != "1":
         return
+    ident = ["-c", "user.name=etl-bot", "-c", "user.email=actions@github.com"]
     for cmd in (["git", "add", "-A"],
-                ["git", "commit", "-m", msg + " [skip ci]"],
+                ["git", *ident, "commit", "-m", msg + " [skip ci]"],
                 ["git", "push"]):
-        subprocess.run(cmd, check=False, capture_output=True)
+        p = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        if p.returncode and cmd[-1] == "push":
+            print(f"autocommit push failed: {p.stderr[:200]}", flush=True)
 
 
 def mark_done(stats):
