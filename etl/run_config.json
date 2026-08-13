@@ -1,0 +1,5 @@
+{
+  "mode": "full",
+  "chunk_size": 40,
+  "budget_seconds": 3000
+}

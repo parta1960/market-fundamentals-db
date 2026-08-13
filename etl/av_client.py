@@ -9,7 +9,7 @@ import requests
 
 from config import AV_BASE, RATE_TEST_MAX_CALLS, RATE_TEST_WINDOW_SECONDS
 
-API_KEY = os.environ["ALPHAVANTAGE_API_KEY"]
+API_KEY = os.environ.get("ALPHAVANTAGE_API_KEY", "")  # required at call time, not import time
 
 # Strings AV embeds in 200-OK bodies to signal throttling / entitlement problems.
 LIMIT_MARKERS = ("Note", "Information", "Error Message")
