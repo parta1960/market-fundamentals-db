@@ -21,6 +21,20 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.8.1 — 2026-08-16
+
+- Responsive fixes from a full 4-viewport UX audit (1400/1024/768/390 px):
+  - **Top bar no longer overflows on phones** — the send / minimize buttons
+    were unreachable at phone widths (they sat at x≈630 on a 390-px screen).
+    On narrow screens the provider/model pickers relocate into the AI panel
+    header, the Menu button collapses to "☰", and bar spacing tightens.
+  - Charts grid no longer forces sideways scrolling on phones
+    (`minmax(min(430px,100%),1fr)`).
+  - **Tables: first row AND first column now stay fixed while scrolling**
+    (screener table + charts data table), per the standing preference —
+    scrollable containers with sticky header and sticky ticker/quarter column.
+  - 📈 favicon on both pages (was the browser default blank).
+
 ## v1.8.0 — 2026-08-16
 
 - **Fixed top bar** on every page (stays put while scrolling): ☰ Menu at the

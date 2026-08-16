@@ -65,6 +65,7 @@
   #slBar.min #slBarIn, #slBar.min #aiProv, #slBar.min #aiModel,
   #slBar.min #slBarMic, #slBar.min #slBarSend, #slBar.min #slBarAi { display:none; }
   #slBar.min #slBarPill { display:inline-block; }
+  @media (max-width: 820px) { #slBar { gap:6px; padding:8px 8px; } }
   #aiPanel { position:fixed; right:0; top:52px; bottom:0; width:min(420px,100vw);
     z-index:60; background:#161b22; border-left:1px solid #30363d; display:none;
     flex-direction:column; font-size:13.5px; }
@@ -199,6 +200,21 @@
       rec.start();
     };
   }
+  // narrow screens (v1.8.1): the provider/model pickers relocate into the
+  // panel head so the send / minimize buttons always stay reachable on phones
+  const mqNarrow = matchMedia("(max-width: 820px)");
+  function placePickers() {
+    const prov = el("aiProv"), model = el("aiModel");
+    if (mqNarrow.matches) {
+      const head = el("aiHead"), key = el("aiKeyBtn");
+      head.insertBefore(prov, key); head.insertBefore(model, key);
+    } else {
+      bar.insertBefore(prov, el("slBarMic"));
+      bar.insertBefore(model, el("slBarMic"));
+    }
+  }
+  placePickers();
+  if (mqNarrow.addEventListener) mqNarrow.addEventListener("change", placePickers);
   const provSel = el("aiProv"), modelIn = el("aiModel");
   Object.entries(PROVIDERS).forEach(([k, p]) => {
     const o = document.createElement("option"); o.value = k; o.textContent = p.name;

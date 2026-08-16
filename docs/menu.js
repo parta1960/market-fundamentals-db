@@ -30,6 +30,11 @@
   const slot = document.getElementById("slMenuSlot");
   if (slot) slot.appendChild(btn);
   else { btn.classList.add("fallback"); document.body.appendChild(btn); }
+  // narrow screens: icon-only label so the bar fits on phones (v1.8.1)
+  const mqM = matchMedia("(max-width: 820px)");
+  const setLbl = () => { btn.textContent = mqM.matches ? "☰" : "☰ Menu"; };
+  setLbl();
+  if (mqM.addEventListener) mqM.addEventListener("change", setLbl);
 
   const ver = typeof STOCKLAB_VERSION !== "undefined" ? STOCKLAB_VERSION : "";
   const menu = document.createElement("div");

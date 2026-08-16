@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — History Charts</title>
-<script src="version.js?v=v1.8.0"></script>
-<script src="vendor/chart.umd.min.js?v=v1.8.0"></script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
+<script src="version.js?v=v1.8.1"></script>
+<script src="vendor/chart.umd.min.js?v=v1.8.1"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -41,18 +42,21 @@
                   color:var(--ink); padding:2px 0; cursor:pointer; }
   .mgroup input { accent-color:var(--accent); }
   .charts { padding:4px 24px 10px; display:grid; gap:14px;
-            grid-template-columns:repeat(auto-fit, minmax(430px, 1fr)); }
+            grid-template-columns:repeat(auto-fit, minmax(min(430px, 100%), 1fr)); }
   .panel { background:var(--surface); border:1px solid var(--border); border-radius:8px;
            padding:12px 14px 8px; }
   .panel h3 { margin:0 0 2px; font-size:13px; font-weight:600; }
   .panel .meta { color:var(--ink3); font-size:11.5px; margin-bottom:4px; }
   .panel .cwrap { position:relative; height:240px; }
   #status { padding:16px 24px; color:var(--ink2); }
-  table.dt { border-collapse:collapse; margin:8px 24px 20px; font-size:12.5px; }
+  #dtwrap:not(:empty) { overflow:auto; max-height:70vh; margin:8px 24px 20px; }
+  table.dt { border-collapse:separate; border-spacing:0; font-size:12.5px; }
   table.dt th, table.dt td { padding:4px 10px; text-align:right; border-bottom:1px solid #21262d;
     white-space:nowrap; font-variant-numeric:tabular-nums; }
-  table.dt th { color:var(--ink2); position:sticky; top:0; background:var(--bg); }
-  table.dt td:first-child, table.dt th:first-child { text-align:left; }
+  table.dt th { color:var(--ink2); position:sticky; top:0; background:var(--bg); z-index:2; }
+  table.dt td:first-child, table.dt th:first-child { text-align:left;
+    position:sticky; left:0; background:var(--bg); }
+  table.dt th:first-child { z-index:3; }
   footer { color:var(--ink3); font-size:11.5px; padding:8px 24px 26px; max-width:980px; }
 </style>
 </head>
@@ -371,7 +375,7 @@ fetch("data/history/manifest.json").then(r => r.json()).then(m => {
 }).catch(e => { $("status").textContent =
   "Failed to load manifest (" + e.message + "). The first daily run after deploy populates it."; });
 </script>
-<script src="chat.js?v=v1.8.0" defer></script>
-<script src="menu.js?v=v1.8.0" defer></script>
+<script src="chat.js?v=v1.8.1" defer></script>
+<script src="menu.js?v=v1.8.1" defer></script>
 </body>
 </html>

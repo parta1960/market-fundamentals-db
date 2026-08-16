@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — S&P 500 + Nasdaq-100 fundamentals</title>
-<script src="version.js?v=v1.8.0"></script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
+<script src="version.js?v=v1.8.1"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -32,11 +33,14 @@
     border-radius:6px; padding:7px 11px; font-size:12.5px; cursor:pointer; }
   .filters button:hover { color:var(--ink); border-color:var(--ink3); }
   .filters button.preset { color:var(--accent); }
-  .wrap { overflow-x:auto; padding:0 24px 8px; }
-  table { border-collapse:collapse; width:100%; min-width:1080px; }
+  .wrap { overflow:auto; max-height:calc(100vh - 230px); padding:0 24px 8px; }
+  table { border-collapse:separate; border-spacing:0; width:100%; min-width:1080px; }
   th, td { padding:6px 10px; text-align:right; white-space:nowrap; }
   th { color:var(--ink2); font-size:11.5px; font-weight:600; cursor:pointer; user-select:none;
-       border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); }
+       border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg);
+       z-index:2; }
+  th:first-child, td:first-child { position:sticky; left:0; background:var(--bg); }
+  thead th:first-child { z-index:3; }
   th:hover { color:var(--ink); }
   th.sorted { color:var(--accent); }
   td { border-bottom:1px solid #21262d; font-variant-numeric:tabular-nums; }
@@ -166,7 +170,7 @@ fetch("data/latest_ratios.json").then(r => { if (!r.ok) throw new Error(r.status
 })
 .catch(e => { $("status").textContent = "Failed to load data/latest_ratios.json (" + e.message + "). The first daily run after this page was deployed populates it."; });
 </script>
-<script src="chat.js?v=v1.8.0" defer></script>
-<script src="menu.js?v=v1.8.0" defer></script>
+<script src="chat.js?v=v1.8.1" defer></script>
+<script src="menu.js?v=v1.8.1" defer></script>
 </body>
 </html>
