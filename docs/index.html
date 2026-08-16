@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — S&P 500 + Nasdaq-100 fundamentals</title>
-<script src="version.js"></script>
+<script src="version.js?v=v1.7.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -166,6 +166,7 @@ fetch("data/latest_ratios.json").then(r => { if (!r.ok) throw new Error(r.status
 })
 .catch(e => { $("status").textContent = "Failed to load data/latest_ratios.json (" + e.message + "). The first daily run after this page was deployed populates it."; });
 </script>
-<script src="chat.js" defer></script>
+<script src="chat.js?v=v1.7.0" defer></script>
+<script src="menu.js?v=v1.7.0" defer></script>
 </body>
 </html>

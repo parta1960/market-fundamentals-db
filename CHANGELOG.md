@@ -21,6 +21,24 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.7.0 — 2026-08-16
+
+- **☰ Menu button** (`docs/menu.js`, next to the AI button on every page):
+  AI setup (opens the assistant with the password/key rows ready), Share this
+  view (native share on phones, copy-link elsewhere), Screener / History
+  Charts navigation, Changelog + methodology links, data-freshness readout,
+  and "Reset AI settings on this device" (two-click confirm; clears the saved
+  password/keys/model choices).
+- **No more manual hard refresh**: every script include is now
+  version-stamped (`chat.js?v=v1.7.0` …), so browsers automatically fetch the
+  new code when a release lands — stale-cache confusion ("button does
+  nothing", "still the old models") ends after this release rolls out.
+  RELEASE CHECKLIST: bump the `?v=` stamp in BOTH html files each release.
+- Diagnosis note: the reported dead 🤖 AI button reproduced on neither page
+  against the deployed code (Playwright: panel opens via button and top bar,
+  zero console errors) — consistent with the browser running cached v1.4.x
+  files, which this release prevents going forward.
+
 ## v1.6.0 — 2026-08-16
 
 - **AI without pasting API keys** (`proxy/`): new password-gated Netlify

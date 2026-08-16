@@ -266,6 +266,12 @@
       msg("err", "Password rejected: " + e.message);
     }
   };
+  // hook for the site menu (v1.7.0): open the panel with both setup rows
+  window.__ai = { setup() {
+    panel.classList.add("open");
+    el("aiPassRow").classList.add("open"); el("aiKeyRow").classList.add("open");
+    keyHint(); refreshModels(false);
+  } };
   refreshModels(false);
   el("aiSend").onclick = send;
   el("aiIn").addEventListener("keydown", e => {
