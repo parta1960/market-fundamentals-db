@@ -21,6 +21,21 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.9.0 — 2026-08-16
+
+- **Exponential fit on every chart** (`docs/charts.html`): each series gets a
+  dashed fitted curve y=a·e^(b·t) with its parameters shown in the chart
+  header — a (level at series start), b (continuous yearly rate), the
+  equivalent compound %/yr, and R² (log-space). Least squares on ln(y) over
+  the VISIBLE range, positive values only, ≥6 points required (series
+  without enough positive data say "fit n/a"). Works in compare mode too
+  (per-company dashed fits + parameter strip). Because fits are computed in
+  the browser at draw time from the latest JSON, they update automatically
+  every time new quarterly data lands — nothing to maintain.
+- Verified against an independent numpy fit of the same data: identical to
+  every displayed digit (AAPL revenue TTM: a=$43.1B, b=0.143/yr, +15.4%/yr,
+  R²=0.846).
+
 ## v1.8.1 — 2026-08-16
 
 - Responsive fixes from a full 4-viewport UX audit (1400/1024/768/390 px):
