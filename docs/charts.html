@@ -238,8 +238,17 @@ async function draw() {
     wrap.innerHTML = `<h3>${mi.label}</h3><div class="meta">${[main, ...others].map(h => h.ticker).join(" vs ")}</div><div class="cwrap"><canvas></canvas></div>`;
     $("charts").appendChild(wrap);
     const ds = [main, ...others].map(h => {
-      const byQ = {}; h.quarters.forEach((q, i) => byQ[q] = (h.series[k] || [])[i]);
-      const data = labels.map(q => byQ[q] ?? null);
+      // align by NEAREST quarter (±45d) — fiscal calendars differ across firms
+      const times = h.quarters.map(q => Date.parse(q));
+      const data = labels.map(q => {
+        const t0 = Date.parse(q);
+        let best = -1, bd = 46 * 864e5;
+        for (let i = 0; i < times.length; i++) {
+          const d = Math.abs(times[i] - t0);
+          if (d < bd) { bd = d; best = i; }
+        }
+        return best >= 0 ? ((h.series[k] || [])[best] ?? null) : null;
+      });
       return { label: h.ticker, data };
     });
     charts.push(mkChart(wrap.querySelector("canvas"), labels, ds, mi.unit));
@@ -305,9 +314,25 @@ fetch("data/history/manifest.json").then(r => r.json()).then(m => {
   $("log").onchange = draw;
   $("tbl").onchange = draw;
   buildMetricPanel();
+  // bridge for the AI assistant (chat.js)
+  window.__app = {
+    state: () => state, MAN: () => MAN, getHist,
+    apply(cmd) {
+      if (cmd.t) { state.t = String(cmd.t).toUpperCase(); $("tick").value = state.t; }
+      if (Array.isArray(cmd.m) && cmd.m.length) state.metrics = cmd.m.slice(0, 6);
+      if (cmd.p !== undefined) { state.per = +cmd.p || 0;
+        document.querySelectorAll("[data-p]").forEach(x =>
+          x.classList.toggle("on", +x.dataset.p === state.per)); }
+      if (Array.isArray(cmd.c)) { state.cmp = cmd.c.map(x => String(x).toUpperCase()).slice(0, 3);
+        $("cmp").value = state.cmp.join(", "); }
+      buildMetricPanel();
+      draw();
+    },
+  };
   draw();
 }).catch(e => { $("status").textContent =
   "Failed to load manifest (" + e.message + "). The first daily run after deploy populates it."; });
 </script>
+<script src="chat.js" defer></script>
 </body>
 </html>

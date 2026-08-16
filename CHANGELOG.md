@@ -21,6 +21,22 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.3.0 — 2026-08-16
+
+- `docs/chat.js` (new): built-in AI analyst. Provider menu (Claude / Gemini /
+  DeepSeek / Kimi), bring-your-own-key stored ONLY in the browser's localStorage
+  (never in the repo — the site is public), editable model names. The model
+  receives the metric catalog + the currently charted data (main + compare
+  tickers, visible range) and can DRIVE the app via a fenced `app` JSON command
+  (ticker / metrics / range / compare). Graceful errors with hints (CORS-blocked
+  providers, rejected keys).
+- `docs/charts.html`: `window.__app` bridge for the assistant; compare mode now
+  aligns companies by NEAREST quarter (±45 days) — fixes missing lines when
+  fiscal calendars are offset (e.g. NVDA vs AMD).
+- Ops: auto-push watcher installed on the maintainer PC (Task Scheduler, 5-min
+  poll of `.mfdb\outbox` + `DEPLOY.json` flag) — staged releases deploy without
+  manual commands; the GitHub token never leaves the PC.
+
 ## v1.2.1 — 2026-08-16
 
 - `docs/charts.html`: Yahoo-style adaptive time axis — round-year labels on long
