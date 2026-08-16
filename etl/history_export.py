@@ -259,8 +259,8 @@ def build():
     names = {}
     if not comp.empty:
         c = comp.drop_duplicates("ticker")
-        names = {r.ticker: (r.name if isinstance(r.name, str) else getattr(r, "name", ""),
-                            getattr(r, "sector", ""))
+        _s = lambda v: v if isinstance(v, str) else ""   # NaN names -> "" (v1.4.2)
+        names = {r.ticker: (_s(r.name), _s(r.sector))
                  for r in c[["ticker", "name", "sector"]].itertuples(index=False)}
 
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -279,7 +279,7 @@ def build():
         # drop metrics that are entirely null for this ticker (smaller files)
         doc["series"] = {k: v for k, v in doc["series"].items()
                         if any(x is not None for x in v)}
-        blob = json.dumps(doc, separators=(",", ":")).encode()
+        blob = json.dumps(doc, separators=(",", ":"), allow_nan=False).encode()
         path = f"{OUT_DIR}/{t}.json"
         if os.path.exists(path) and open(path, "rb").read() == blob:
             unchanged += 1
@@ -297,7 +297,7 @@ def build():
         "tickers": sorted(tickers_out, key=lambda x: x["t"]),
     }
     with open(f"{OUT_DIR}/manifest.json", "w") as f:
-        json.dump(manifest, f, separators=(",", ":"))
+        json.dump(manifest, f, separators=(",", ":"), allow_nan=False)
     print(f"history_export: {written} written, {unchanged} unchanged, "
           f"{len(tickers_out)} tickers")
 

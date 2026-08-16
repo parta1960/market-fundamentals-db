@@ -21,6 +21,15 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.4.2 — 2026-08-16
+
+- Hotfix: the Sunday universe refresh returned a company (CME) with a missing
+  name; the exporter's fallback leaked Python `NaN` into
+  `docs/data/history/manifest.json`, which is invalid JSON and broke the charts
+  page ("Failed to load manifest"). Names/sectors are now sanitized to strings,
+  and both JSON writers use `allow_nan=False` as a tripwire so invalid JSON can
+  never be published silently again.
+
 ## v1.4.1 — 2026-08-16
 
 - **Split-adjusted display basis** (`etl/history_export.py`): prices, share
