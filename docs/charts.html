@@ -79,7 +79,7 @@
 </div>
 
 <details class="mpanel" open><summary style="cursor:pointer; color:var(--ink2); font-size:12.5px;">
-  Metrics (pick up to 6)</summary>
+  Metrics (up to 6 charted — picking a 7th replaces the oldest)</summary>
   <div class="groups" id="mgroups"></div>
 </details>
 
@@ -145,9 +145,34 @@ function metricInfo(k) { return MAN.metrics.find(m => m.k === k) || {k, label:k,
 
 function sliceN(arr, n) { return n && arr.length > n ? arr.slice(arr.length - n) : arr; }
 
+const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function tickMap(labels) {
+  // Yahoo-style adaptive axis: round years for long ranges, Mon 'YY for short.
+  const n = labels.length, map = {};
+  if (!n) return map;
+  const y0 = +labels[0].slice(0, 4), y1 = +labels[n - 1].slice(0, 4);
+  const span = y1 - y0;
+  if (span >= 3) {
+    let step = 10;
+    for (const s of [1, 2, 5, 10]) { if (span / s <= 8) { step = s; break; } }
+    let prev = null;
+    labels.forEach((l, i) => {
+      const y = +l.slice(0, 4);
+      if (y !== prev) { prev = y; if (y % step === 0) map[i] = String(y); }
+    });
+  } else {
+    const step = Math.max(1, Math.ceil(n / 8));
+    labels.forEach((l, i) => {
+      if (i % step === 0) map[i] = MO[+l.slice(5, 7) - 1] + " '" + l.slice(2, 4);
+    });
+  }
+  return map;
+}
+
 function mkChart(canvas, labels, datasets, unit) {
   const log = $("log").checked && unit !== "pct" &&
     datasets.every(d => d.data.every(v => v === null || v > 0));
+  const tm = tickMap(labels);
   return new Chart(canvas, {
     type: "line",
     data: { labels, datasets: datasets.map((d, i) => ({
@@ -157,9 +182,9 @@ function mkChart(canvas, labels, datasets, unit) {
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: "index", intersect: false },
       scales: {
-        x: { ticks: { color: INK2, maxTicksLimit: 9, maxRotation: 0,
-                      callback(v){ const l = this.getLabelForValue(v); return l.slice(0,7); } },
-             grid: { color: GRID } },
+        x: { ticks: { color: INK2, autoSkip: false, maxRotation: 0,
+                      callback: v => tm[v] ?? "" },
+             grid: { color: c => tm[c.index] !== undefined ? GRID : "rgba(0,0,0,0)" } },
         y: { type: log ? "logarithmic" : "linear",
              ticks: { color: INK2, maxTicksLimit: 7, callback: v => fmt(v, unit) },
              grid: { color: GRID } },
@@ -244,10 +269,16 @@ function buildMetricPanel() {
     `<div class="mgroup"><h4>${g}</h4>` + ms.map(m =>
       `<label><input type="checkbox" value="${m.k}" ${state.metrics.includes(m.k) ? "checked" : ""}> ${m.label}</label>`
     ).join("") + "</div>").join("");
+  let selOrder = state.metrics.slice();
   $("mgroups").querySelectorAll("input").forEach(cb => cb.onchange = () => {
-    const sel = [...$("mgroups").querySelectorAll("input:checked")].map(x => x.value);
-    if (sel.length > 6) { cb.checked = false; return; }
-    state.metrics = sel.length ? sel : DEFAULT_METRICS.slice();
+    if (cb.checked) { if (!selOrder.includes(cb.value)) selOrder.push(cb.value); }
+    else selOrder = selOrder.filter(v => v !== cb.value);
+    while (selOrder.length > 6) {
+      const drop = selOrder.shift();
+      const el = [...$("mgroups").querySelectorAll("input")].find(x => x.value === drop);
+      if (el) el.checked = false;
+    }
+    state.metrics = selOrder.length ? selOrder.slice() : DEFAULT_METRICS.slice();
     draw();
   });
 }

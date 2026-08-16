@@ -21,6 +21,15 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.2.1 — 2026-08-16
+
+- `docs/charts.html`: Yahoo-style adaptive time axis — round-year labels on long
+  ranges (every 1/2/5/10 years as needed), `Mon 'YY` on short ranges; gridlines
+  drawn only at labeled ticks. Fixes colliding, unreadable quarter labels.
+- `docs/charts.html`: metric checkboxes no longer dead-end at the 6-chart limit —
+  selecting a 7th metric now replaces the oldest selection instead of silently
+  rejecting the click.
+
 ## v1.2.0 — 2026-08-15
 
 History charts: any stored metric, any ticker, any period, on the Pages site.
