@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>History Charts — Market Fundamentals</title>
+<title>StockLab — History Charts</title>
+<script src="version.js"></script>
 <script src="vendor/chart.umd.min.js"></script>
 <style>
   :root {
@@ -57,8 +58,8 @@
 </head>
 <body>
 <header>
-  <h1>History Charts</h1>
-  <div class="sub"><a href="index.html">← Screener</a> · quarterly fundamentals &amp;
+  <h1>StockLab · History Charts</h1>
+  <div class="sub"><span class="sl-ver"></span> · <a href="index.html">← Screener</a> · quarterly fundamentals &amp;
     valuation history · data through <span id="asof">…</span> ·
     <a href="https://github.com/parta1960/market-fundamentals-db">methodology</a></div>
 </header>
@@ -89,9 +90,10 @@
 <div id="status">Loading…</div>
 
 <footer>
-  Prices in ratios are unadjusted quarter-end closes paired with same-date share
-  counts (no look-ahead, no retro-revision). Negative-earnings quarters show no
-  P/E. Educational tool, not investment advice.
+  Valuation ratios pair each quarter's actual close with same-date share counts
+  (no look-ahead). Displayed prices, share counts and per-share values are
+  split-adjusted to today's basis for continuity (Yahoo-comparable).
+  Negative-earnings quarters show no P/E. Educational tool, not investment advice.
 </footer>
 
 <script>

@@ -77,7 +77,13 @@
   #aiSend { background:#1f6feb; color:#fff; border:none; border-radius:8px;
     padding:0 16px; font-weight:600; cursor:pointer; }
   #aiSend:disabled { opacity:.5; }
-  #aiNote { padding:4px 12px 10px; color:#6e7681; font-size:11px; }`;
+  #aiNote { padding:4px 12px 10px; color:#6e7681; font-size:11px; }
+  #aiVer { color:#6e7681; font-size:11px; }
+  #aiTopBar { padding:2px 24px 10px; }
+  #aiTopIn { width:100%; max-width:760px; background:#161b22; color:#e6edf3;
+    border:1px solid #30363d; border-radius:8px; padding:10px 12px;
+    font-size:13.5px; }
+  #aiTopIn::placeholder { color:#6e7681; }`;
   const st = document.createElement("style"); st.textContent = css;
   document.head.appendChild(st);
 
@@ -93,6 +99,7 @@
       <select id="aiModel" title="model — list auto-updates from the provider"></select>
       <button id="aiKeyBtn" title="set API key for this provider">🔑 key</button>
       <button id="aiClear" title="clear conversation">↺</button>
+      <span id="aiVer"></span>
       <button id="aiClose">✕</button>
     </div>
     <div id="aiKeyRow">
@@ -109,6 +116,25 @@
     15 years".</div>`;
   document.body.appendChild(panel);
   const el = id => document.getElementById(id);
+  if (typeof STOCKLAB_VERSION !== "undefined")
+    el("aiVer").textContent = "StockLab " + STOCKLAB_VERSION;
+  // chat box at the top of every page — sends straight into the assistant
+  const topBar = document.createElement("div");
+  topBar.id = "aiTopBar";
+  topBar.innerHTML = `<input id="aiTopIn" placeholder="🤖 Ask StockLab AI — about any company's 20-year data, or tell it what to chart…">`;
+  const hdr = document.querySelector("header");
+  if (hdr) hdr.insertAdjacentElement("afterend", topBar);
+  topBar.querySelector("#aiTopIn").addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      const v = e.target.value.trim();
+      if (!v) return;
+      e.target.value = "";
+      panel.classList.add("open");
+      el("aiIn").value = v;
+      keyHint(); refreshModels(false);
+      send();
+    }
+  });
   const provSel = el("aiProv"), modelIn = el("aiModel");
   Object.entries(PROVIDERS).forEach(([k, p]) => {
     const o = document.createElement("option"); o.value = k; o.textContent = p.name;
@@ -215,6 +241,18 @@
     return lines.join("\n");
   }
   async function buildContext() {
+    if (!window.__app && window.__screener) {
+      // screener (landing) page: give the model the current snapshot table
+      const rows = window.__screener.rows().slice(0, 300);
+      const cols = ["ticker", "name", "sector", "close", "pe_ttm", "ps_ttm",
+        "pfcf_ttm", "pb", "gross_margin", "op_margin", "net_margin",
+        "rev_yoy", "ni_yoy", "shares_yoy"];
+      const csv = [cols.join(",")].concat(rows.map(r =>
+        cols.map(c => r[c] === null || r[c] === undefined ? "" : r[c]).join(",")
+      )).join("\n");
+      return `Current page: StockLab screener — latest TTM snapshot of ` +
+        `${rows.length} S&P 500 + Nasdaq-100 companies.\nCSV:\n${csv}\n`;
+    }
     const A = window.__app, s = A.state();
     const man = A.MAN();
     const cat = man.metrics.map(m => `${m.k} (${m.label}, unit:${m.unit})`).join("; ");
@@ -245,6 +283,7 @@ include exactly one fenced block like:
 where t=ticker, m=metric keys from the catalog (max 6), p=quarters back
 (20=5y, 40=10y, 60=15y, 80=20y, 0=all), c=compare tickers (max 3, only with a
 single metric). Only include the block when the user wants the view changed.
+On the screener page the block opens the History Charts page with that view.
 Not investment advice; data may contain gaps.`;
 
   /* ---------- providers ---------- */
@@ -297,6 +336,18 @@ Not investment advice; data may contain gaps.`;
     if (!m) return text;
     try {
       const cmd = JSON.parse(m[1]);
+      if (!window.__app) {
+        // not on the charts page — navigate there with the requested view
+        const u = new URLSearchParams();
+        if (cmd.t) u.set("t", String(cmd.t).toUpperCase());
+        if (Array.isArray(cmd.m) && cmd.m.length) u.set("m", cmd.m.join(","));
+        if (cmd.p) u.set("p", cmd.p);
+        if (Array.isArray(cmd.c) && cmd.c.length)
+          u.set("c", cmd.c.map(x => String(x).toUpperCase()).join(","));
+        msg("act", "✓ opening History Charts with that view…");
+        setTimeout(() => { location.href = "charts.html?" + u.toString(); }, 1400);
+        return text.replace(m[0], "").trim();
+      }
       window.__app.apply(cmd);
       const bits = [];
       if (cmd.t) bits.push("ticker → " + cmd.t);

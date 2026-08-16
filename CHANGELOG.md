@@ -21,6 +21,33 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.4.1 — 2026-08-16
+
+- **Split-adjusted display basis** (`etl/history_export.py`): prices, share
+  counts and all per-share series (EPS, revenue/share, FCF/share, book/share)
+  are now presented split-adjusted to today's basis — continuous across splits
+  and directly comparable to Yahoo Finance / Seeking Alpha. Fixes the apparent
+  discontinuities in AAPL EPS at the 2014 7:1 and 2020 4:1 splits. Valuation
+  ratios are computed on the internally consistent as-reported pair and are
+  unchanged.
+- **Top-10 cross-validation** vs stockanalysis.com quarterly statements:
+  revenues EXACT to the dollar for AAPL, MSFT, NVDA, GOOGL, TSLA (latest two
+  quarters each); AAPL split-adjusted closes match Yahoo at 2006/2012/2020
+  checkpoints. Known definitional difference: our EPS = net income ÷ period-end
+  share count; Yahoo/SA report weighted-average DILUTED EPS (typically 0–1%
+  apart; up to ~9% for heavy issuers like TSLA). Diluted EPS = backlog item.
+
+## v1.4.0 — 2026-08-16
+
+- **Rebrand:** "Market Fundamentals Screener" → **StockLab** (titles + headers on
+  both pages).
+- **Version badge on every page** (`docs/version.js`, single source of truth,
+  shown in each header and in the AI panel; bumped each release).
+- **AI on every page:** chat box at the top of the landing page and charts page
+  ("Ask StockLab AI…") — Enter opens the assistant and sends. On the screener
+  page the assistant receives the full latest-ratios table as context; app
+  commands there navigate to the History Charts page with the requested view.
+
 ## v1.3.1 — 2026-08-16
 
 - `docs/chat.js`: model picker is now a dropdown fed LIVE from each provider's

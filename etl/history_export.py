@@ -80,7 +80,7 @@ METRICS = [
     ("revenue_ps", "Revenue / share", "ps", "Per share"),
     ("fcf_ps", "FCF / share", "ps", "Per share"),
     ("book_ps", "Book value / share", "ps", "Per share"),
-    ("close", "Price (quarter-end close, unadjusted)", "ps", "Valuation"),
+    ("close", "Price (quarter-end close, split-adjusted)", "ps", "Valuation"),
     ("mktcap", "Market cap", "usd", "Valuation"),
     ("pe_ttm", "P/E (TTM)", "x", "Valuation"),
     ("ps_ttm", "P/S (TTM)", "x", "Valuation"),
@@ -209,6 +209,7 @@ def build():
         wide["close"] = float("nan")
 
     # --- corrected share counts (see module docstring) -----------------
+    split_factor = None
     shares_raw = _read("shares_outstanding")
     if not shares_raw.empty and not prices.empty:
         obs, ev = corrected_shares(shares_raw, prices)
@@ -223,8 +224,8 @@ def build():
         for t, g in wide.groupby("ticker", sort=True):
             fq.extend(zip(g.index, _factor_after(ev, t, g.fiscal_date_ending)))
         fmap = dict(fq)
-        wide["shares"] = wide["adj"] / pd.Series(
-            [fmap[i] for i in wide.index], index=wide.index)
+        split_factor = pd.Series([fmap[i] for i in wide.index], index=wide.index)
+        wide["shares"] = wide["adj"] / split_factor
         wide = wide.drop(columns=["adj"])
         # per-share series recomputed on the corrected, as-reported basis
         wide["eps_q"] = wide.get("net_income", pd.NA) / wide["shares"]
@@ -240,6 +241,20 @@ def build():
     wide["pfcf_ttm"] = [_ratio(c, f / s) if s and not pd.isna(s) and s > 0 else float("nan")
                         for c, f, s in zip(wide["close"], wide["fcf_ttm"], wide["shares"])]
     wide["pb"] = [_ratio(c, b) for c, b in zip(wide["close"], wide["book_ps"])]
+
+    # ---- display basis: SPLIT-ADJUST price, shares and per-share series ----
+    # Ratios above are computed on the internally consistent as-reported pair
+    # (actual close x same-date count) and are mathematically unchanged. But
+    # per-share SERIES are presented split-adjusted to today's basis so charts
+    # are continuous across splits and directly comparable to Yahoo Finance /
+    # Seeking Alpha (v1.4.1 fix: AAPL EPS no longer "drops" at the 2014 7:1
+    # and 2020 4:1 splits).
+    if split_factor is not None:
+        wide["close"] = wide["close"] / split_factor
+        wide["shares"] = wide["shares"] * split_factor
+        for c in ("eps_q", "eps_ttm", "revenue_ps", "fcf_ps", "book_ps"):
+            if c in wide.columns:
+                wide[c] = wide[c] / split_factor
 
     names = {}
     if not comp.empty:
