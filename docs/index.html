@@ -54,7 +54,8 @@
   <div class="sub">S&amp;P 500 + Nasdaq-100 · TTM ratios from
     <a style="color:var(--accent);text-decoration:none"
        href="https://github.com/parta1960/market-fundamentals-db">market-fundamentals-db</a>
-    · data as of <span id="asof">…</span> · updates weekdays after US close</div>
+    · data as of <span id="asof">…</span> · updates weekdays after US close ·
+    <a style="color:var(--accent);text-decoration:none" href="charts.html">📈 History charts</a></div>
 </header>
 
 <div class="tiles" id="tiles"></div>
@@ -127,7 +128,10 @@ function render() {
     let cls = kind === "l" ? "l" : "";
     if (k === "ticker") cls += " tick"; if (k === "name") cls += " name";
     if (kind === "pctpol" && typeof v === "number") cls += v >= 0 ? " pos" : " neg";
-    return `<td class="${cls}">${fmt(v, kind)}</td>`; }).join("") + "</tr>").join("");
+    const cell = k === "ticker"
+      ? `<a style="color:inherit;text-decoration:none" href="charts.html?t=${v}" title="history charts">${v}</a>`
+      : fmt(v, kind);
+    return `<td class="${cls}">${cell}</td>`; }).join("") + "</tr>").join("");
   $("status").textContent = `${r.length} of ${rows.length} companies`;
   document.querySelectorAll("th").forEach(th => th.onclick = () => {
     const k = th.dataset.k;

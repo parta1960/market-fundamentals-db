@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>History Charts — Market Fundamentals</title>
+<script src="vendor/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#0d1117; --surface:#161b22; --border:#30363d;
+    --ink:#e6edf3; --ink2:#9aa4b2; --ink3:#6e7681; --accent:#58a6ff;
+    /* categorical series slots — validated for this dark surface (CVD-safe) */
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:14px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header { padding:20px 24px 8px; }
+  h1 { font-size:19px; margin:0 0 2px; font-weight:600; }
+  .sub { color:var(--ink2); font-size:12.5px; }
+  a { color:var(--accent); text-decoration:none; }
+  .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:end; padding:12px 24px 4px; }
+  .controls label { display:flex; flex-direction:column; gap:3px; font-size:11.5px; color:var(--ink2); }
+  .controls input {
+    background:var(--surface); border:1px solid var(--border); color:var(--ink);
+    border-radius:6px; padding:6px 8px; font-size:13px; width:150px; }
+  .controls button, .pergroup summary {
+    background:var(--surface); color:var(--ink2); border:1px solid var(--border);
+    border-radius:6px; padding:7px 11px; font-size:12.5px; cursor:pointer; }
+  .controls button:hover { color:var(--ink); border-color:var(--ink3); }
+  .controls button.on { color:var(--accent); border-color:var(--accent); }
+  #tname { padding:4px 24px 0; color:var(--ink2); font-size:13px; }
+  .mpanel { margin:8px 24px; background:var(--surface); border:1px solid var(--border);
+            border-radius:8px; padding:10px 14px; }
+  .mpanel .groups { display:flex; gap:22px; flex-wrap:wrap; }
+  .mgroup { min-width:170px; }
+  .mgroup h4 { margin:4px 0 6px; font-size:11.5px; color:var(--ink2);
+               text-transform:uppercase; letter-spacing:.04em; }
+  .mgroup label { display:flex; gap:6px; align-items:center; font-size:12.5px;
+                  color:var(--ink); padding:2px 0; cursor:pointer; }
+  .mgroup input { accent-color:var(--accent); }
+  .charts { padding:4px 24px 10px; display:grid; gap:14px;
+            grid-template-columns:repeat(auto-fit, minmax(430px, 1fr)); }
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:8px;
+           padding:12px 14px 8px; }
+  .panel h3 { margin:0 0 2px; font-size:13px; font-weight:600; }
+  .panel .meta { color:var(--ink3); font-size:11.5px; margin-bottom:4px; }
+  .panel .cwrap { position:relative; height:240px; }
+  #status { padding:16px 24px; color:var(--ink2); }
+  table.dt { border-collapse:collapse; margin:8px 24px 20px; font-size:12.5px; }
+  table.dt th, table.dt td { padding:4px 10px; text-align:right; border-bottom:1px solid #21262d;
+    white-space:nowrap; font-variant-numeric:tabular-nums; }
+  table.dt th { color:var(--ink2); position:sticky; top:0; background:var(--bg); }
+  table.dt td:first-child, table.dt th:first-child { text-align:left; }
+  footer { color:var(--ink3); font-size:11.5px; padding:8px 24px 26px; max-width:980px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>History Charts</h1>
+  <div class="sub"><a href="index.html">← Screener</a> · quarterly fundamentals &amp;
+    valuation history · data through <span id="asof">…</span> ·
+    <a href="https://github.com/parta1960/market-fundamentals-db">methodology</a></div>
+</header>
+
+<div class="controls">
+  <label>Ticker <input id="tick" list="tlist" placeholder="AAPL" autocapitalize="characters"></label>
+  <datalist id="tlist"></datalist>
+  <label>Compare (1 metric only) <input id="cmp" placeholder="MSFT, GOOGL …"></label>
+  <span style="display:flex; gap:6px; align-items:end;">
+    <button data-p="20">5y</button><button data-p="40">10y</button>
+    <button data-p="60">15y</button><button data-p="80">20y</button>
+    <button data-p="0" class="on">Max</button>
+  </span>
+  <label style="flex-direction:row; align-items:center; gap:6px; padding-bottom:8px;">
+    <input type="checkbox" id="log" style="width:auto; accent-color:var(--accent);"> log scale</label>
+  <label style="flex-direction:row; align-items:center; gap:6px; padding-bottom:8px;">
+    <input type="checkbox" id="tbl" style="width:auto; accent-color:var(--accent);"> data table</label>
+</div>
+
+<details class="mpanel" open><summary style="cursor:pointer; color:var(--ink2); font-size:12.5px;">
+  Metrics (pick up to 6)</summary>
+  <div class="groups" id="mgroups"></div>
+</details>
+
+<div id="tname"></div>
+<div class="charts" id="charts"></div>
+<div id="dtwrap"></div>
+<div id="status">Loading…</div>
+
+<footer>
+  Prices in ratios are unadjusted quarter-end closes paired with same-date share
+  counts (no look-ahead, no retro-revision). Negative-earnings quarters show no
+  P/E. Educational tool, not investment advice.
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const SLOTS = ["--s1","--s2","--s3","--s4"].map(v =>
+  getComputedStyle(document.documentElement).getPropertyValue(v).trim());
+const INK2 = "#9aa4b2", GRID = "#21262d";
+let MAN = null, CACHE = {}, charts = [], lastQ = 0;
+
+const DEFAULT_METRICS = ["revenue_ttm", "eps_ttm", "fcf_ttm", "pe_ttm"];
+const state = { t: "AAPL", metrics: DEFAULT_METRICS.slice(), per: 0, cmp: [] };
+
+function fromURL() {
+  const u = new URLSearchParams(location.search);
+  if (u.get("t")) state.t = u.get("t").toUpperCase();
+  if (u.get("m")) state.metrics = u.get("m").split(",").filter(Boolean);
+  if (u.get("p")) state.per = +u.get("p") || 0;
+  if (u.get("c")) state.cmp = u.get("c").toUpperCase().split(",").filter(Boolean);
+}
+function toURL() {
+  const u = new URLSearchParams();
+  u.set("t", state.t);
+  u.set("m", state.metrics.join(","));
+  if (state.per) u.set("p", state.per);
+  if (state.cmp.length) u.set("c", state.cmp.join(","));
+  history.replaceState(null, "", "?" + u.toString());
+}
+
+const fUSD = v => {
+  const a = Math.abs(v);
+  return a >= 1e12 ? (v/1e12).toFixed(2)+"T" : a >= 1e9 ? (v/1e9).toFixed(1)+"B"
+       : a >= 1e6 ? (v/1e6).toFixed(0)+"M" : v.toFixed(0);
+};
+const fmt = (v, unit) => {
+  if (v === null || v === undefined || Number.isNaN(v)) return "–";
+  if (unit === "pct") return (100*v).toFixed(1) + "%";
+  if (unit === "usd") return "$" + fUSD(v);
+  if (unit === "cnt") return fUSD(v);
+  if (unit === "ps") return "$" + (Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2));
+  return v >= 100 ? v.toFixed(0) : v.toFixed(1);
+};
+
+async function getHist(t) {
+  if (CACHE[t]) return CACHE[t];
+  const r = await fetch("data/history/" + t + ".json");
+  if (!r.ok) throw new Error(t + ": " + r.status);
+  return (CACHE[t] = await r.json());
+}
+
+function metricInfo(k) { return MAN.metrics.find(m => m.k === k) || {k, label:k, unit:"x"}; }
+
+function sliceN(arr, n) { return n && arr.length > n ? arr.slice(arr.length - n) : arr; }
+
+function mkChart(canvas, labels, datasets, unit) {
+  const log = $("log").checked && unit !== "pct" &&
+    datasets.every(d => d.data.every(v => v === null || v > 0));
+  return new Chart(canvas, {
+    type: "line",
+    data: { labels, datasets: datasets.map((d, i) => ({
+      ...d, borderColor: SLOTS[i], backgroundColor: SLOTS[i],
+      borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, spanGaps: false })) },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: { ticks: { color: INK2, maxTicksLimit: 9, maxRotation: 0,
+                      callback(v){ const l = this.getLabelForValue(v); return l.slice(0,7); } },
+             grid: { color: GRID } },
+        y: { type: log ? "logarithmic" : "linear",
+             ticks: { color: INK2, maxTicksLimit: 7, callback: v => fmt(v, unit) },
+             grid: { color: GRID } },
+      },
+      plugins: {
+        legend: { display: datasets.length > 1,
+                  labels: { color: INK2, boxWidth: 12, boxHeight: 3 } },
+        tooltip: {
+          backgroundColor: "#1c2128", borderColor: "#30363d", borderWidth: 1,
+          titleColor: "#e6edf3", bodyColor: "#e6edf3",
+          callbacks: { label: c => (c.dataset.label ? c.dataset.label + ": " : "") +
+                                   fmt(c.parsed.y, unit) } },
+      },
+    },
+  });
+}
+
+function renderTable(labels, cols) {
+  if (!$("tbl").checked) { $("dtwrap").innerHTML = ""; return; }
+  let h = "<table class='dt'><tr><th>Quarter</th>" +
+    cols.map(c => `<th>${c.head}</th>`).join("") + "</tr>";
+  for (let i = labels.length - 1; i >= 0; i--)
+    h += `<tr><td>${labels[i]}</td>` +
+         cols.map(c => `<td>${fmt(c.data[i], c.unit)}</td>`).join("") + "</tr>";
+  $("dtwrap").innerHTML = h + "</table>";
+}
+
+async function draw() {
+  toURL();
+  charts.forEach(c => c.destroy()); charts = [];
+  $("charts").innerHTML = ""; $("status").textContent = "Loading…";
+  let main;
+  try { main = await getHist(state.t); }
+  catch (e) { $("status").textContent = "No data for “" + state.t + "”."; return; }
+  $("tname").textContent = main.ticker + " — " + (main.name || "") +
+    (main.sector ? " · " + main.sector.toLowerCase() : "");
+  lastQ = main.quarters[main.quarters.length - 1];
+
+  const compare = state.cmp.length > 0 && state.metrics.length === 1;
+  const tableCols = [];
+  let labels = [];
+
+  if (compare) {
+    const k = state.metrics[0], mi = metricInfo(k);
+    const others = [];
+    for (const t of state.cmp.slice(0, 3)) {
+      try { others.push(await getHist(t)); } catch (e) { /* skip unknown */ }
+    }
+    labels = sliceN(main.quarters, state.per);
+    const wrap = document.createElement("div"); wrap.className = "panel";
+    wrap.innerHTML = `<h3>${mi.label}</h3><div class="meta">${[main, ...others].map(h => h.ticker).join(" vs ")}</div><div class="cwrap"><canvas></canvas></div>`;
+    $("charts").appendChild(wrap);
+    const ds = [main, ...others].map(h => {
+      const byQ = {}; h.quarters.forEach((q, i) => byQ[q] = (h.series[k] || [])[i]);
+      const data = labels.map(q => byQ[q] ?? null);
+      return { label: h.ticker, data };
+    });
+    charts.push(mkChart(wrap.querySelector("canvas"), labels, ds, mi.unit));
+    ds.forEach(d => tableCols.push({ head: d.label, data: d.data, unit: mi.unit }));
+  } else {
+    labels = sliceN(main.quarters, state.per);
+    for (const k of state.metrics.slice(0, 6)) {
+      const mi = metricInfo(k);
+      const data = sliceN(main.series[k] || main.quarters.map(() => null), state.per);
+      const wrap = document.createElement("div"); wrap.className = "panel";
+      wrap.innerHTML = `<h3>${mi.label}</h3><div class="meta">${main.ticker} · quarterly</div><div class="cwrap"><canvas></canvas></div>`;
+      $("charts").appendChild(wrap);
+      charts.push(mkChart(wrap.querySelector("canvas"), labels, [{ label: "", data }], mi.unit));
+      tableCols.push({ head: mi.label, data, unit: mi.unit });
+    }
+  }
+  renderTable(labels, tableCols);
+  $("status").textContent = compare && state.metrics.length > 1
+    ? "Compare mode uses the first selected metric only."
+    : "";
+}
+
+function buildMetricPanel() {
+  const groups = {};
+  MAN.metrics.forEach(m => (groups[m.group] = groups[m.group] || []).push(m));
+  $("mgroups").innerHTML = Object.entries(groups).map(([g, ms]) =>
+    `<div class="mgroup"><h4>${g}</h4>` + ms.map(m =>
+      `<label><input type="checkbox" value="${m.k}" ${state.metrics.includes(m.k) ? "checked" : ""}> ${m.label}</label>`
+    ).join("") + "</div>").join("");
+  $("mgroups").querySelectorAll("input").forEach(cb => cb.onchange = () => {
+    const sel = [...$("mgroups").querySelectorAll("input:checked")].map(x => x.value);
+    if (sel.length > 6) { cb.checked = false; return; }
+    state.metrics = sel.length ? sel : DEFAULT_METRICS.slice();
+    draw();
+  });
+}
+
+fetch("data/history/manifest.json").then(r => r.json()).then(m => {
+  MAN = m;
+  $("asof").textContent = m.as_of;
+  m.tickers.forEach(x => {
+    const o = document.createElement("option");
+    o.value = x.t; o.label = x.n; $("tlist").appendChild(o);
+  });
+  fromURL();
+  $("tick").value = state.t;
+  $("cmp").value = state.cmp.join(", ");
+  document.querySelectorAll("[data-p]").forEach(b => {
+    b.classList.toggle("on", +b.dataset.p === state.per);
+    b.onclick = () => { state.per = +b.dataset.p;
+      document.querySelectorAll("[data-p]").forEach(x =>
+        x.classList.toggle("on", x === b)); draw(); };
+  });
+  $("tick").onchange = () => { state.t = $("tick").value.trim().toUpperCase(); draw(); };
+  $("cmp").onchange = () => { state.cmp = $("cmp").value.toUpperCase()
+      .split(/[,\s]+/).filter(Boolean).slice(0, 3); draw(); };
+  $("log").onchange = draw;
+  $("tbl").onchange = draw;
+  buildMetricPanel();
+  draw();
+}).catch(e => { $("status").textContent =
+  "Failed to load manifest (" + e.message + "). The first daily run after deploy populates it."; });
+</script>
+</body>
+</html>

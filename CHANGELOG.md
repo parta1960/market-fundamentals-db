@@ -21,6 +21,32 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.2.0 — 2026-08-15
+
+History charts: any stored metric, any ticker, any period, on the Pages site.
+
+- `etl/history_export.py` (new): exports per-ticker quarterly history JSON to
+  `docs/data/history/` (30 metrics: income/cash-flow/balance-sheet lines incl. cash &
+  total debt, margins, growth, per-share, and price-anchored valuation history —
+  quarter-end market cap, P/E, P/S, P/FCF, P/B). Write-if-changed keeps daily git churn
+  near zero. Runs at the end of every daily update.
+- **Share-count basis fix** (correctness): stored share counts mixed two conventions —
+  Alpha Vantage counts are retroactively split-adjusted, EDGAR counts are as-reported.
+  Pairing raw closes with mixed-basis counts inflated early market caps (AAPL 2006 ~28x).
+  The exporter now normalizes every observation to a single basis using the split events
+  in `prices_daily`, spike-guards corrupt points (~1000x units bugs in some EDGAR
+  weighted-average entries), and recomputes all per-share/valuation series on the
+  as-reported basis of each quarter. Validated: AAPL 2006 mktcap $75B / 2016 P/E 13.5 /
+  2026 $4.3T; NVDA 2009 544M shares; MSFT 2016 P/E 25.5. NOTE: `per_quarter.parquet`'s
+  own eps/ps columns still carry the mixed basis — migrating this fix into `derived.py`
+  is a v0.6 item.
+- `docs/charts.html` (new): per-ticker chart page — metric picker (up to 6, small
+  multiples, one axis each), ticker-compare mode (one metric, up to 4 tickers),
+  5/10/15/20y/Max ranges, log scale, data-table view, URL-addressable state
+  (`charts.html?t=AAPL&m=pe_ttm&c=MSFT&p=40`). Chart.js vendored (`docs/vendor/`), no
+  external CDN. Series palette CVD-validated for the dark surface.
+- `docs/index.html`: tickers in the screener table now link to their history page.
+
 ## v0.2.0 — 2026-08-13
 
 - `etl/universe.py`: scrapes S&P 500 + Nasdaq-100 constituents (Wikipedia), normalizes

@@ -28,6 +28,7 @@ import av_client
 import derived
 import edgar_client
 import full_backfill as fb
+import history_export
 from config import AV_MIN_INTERVAL_SECONDS
 
 PARQUET = "data/parquet"
@@ -107,6 +108,7 @@ def main():
         universe.build()
 
     derived.build()
+    history_export.build()
 
     os.makedirs("reports", exist_ok=True)
     with open("reports/daily_update_last.json", "w") as f:
