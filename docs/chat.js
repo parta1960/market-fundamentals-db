@@ -11,7 +11,12 @@
  */
 (() => {
   const LS_KEYS = "mfdb_ai_keys", LS_PROV = "mfdb_ai_prov",
-        LS_MODELS = "mfdb_ai_models", LS_CHOSEN = "mfdb_ai_model_choice";
+        LS_MODELS = "mfdb_ai_models", LS_CHOSEN = "mfdb_ai_model_choice",
+        LS_PASS = "mfdb_ai_pass";
+  // v1.6.0: password-gated proxy — provider keys live server-side (Netlify
+  // env vars), so ONE StockLab password unlocks all four providers on any
+  // device. Per-provider BYOK keys still work as a fallback.
+  const PROXY = "https://stocklab-ai-proxy.netlify.app/.netlify/functions/ai";
   // fallback lists only — the live list is fetched from each provider's own
   // /models endpoint with your key, so new top models appear automatically.
   // Snapshot refreshed 2026-08-16 (v1.5.0); shown ONLY until a key is saved.
@@ -34,6 +39,8 @@
     saveModels() { localStorage.setItem(LS_MODELS, JSON.stringify(this.models)); },
     chosen: JSON.parse(localStorage.getItem(LS_CHOSEN) || "{}"),   // {prov:id}
     saveChosen() { localStorage.setItem(LS_CHOSEN, JSON.stringify(this.chosen)); },
+    pass: localStorage.getItem(LS_PASS) || "",
+    savePass() { localStorage.setItem(LS_PASS, this.pass); },
   };
   let history = [];   // [{role:"user"|"assistant", text}]
   let busy = false;
@@ -55,11 +62,11 @@
   #aiModel { width:150px; }
   #aiHead button { cursor:pointer; }
   #aiClose { margin-left:auto; }
-  #aiKeyRow { display:none; gap:6px; padding:8px 12px; border-bottom:1px solid #30363d; }
-  #aiKeyRow.open { display:flex; }
-  #aiKeyRow input { flex:1; background:#0d1117; color:#e6edf3; border:1px solid #30363d;
+  #aiKeyRow, #aiPassRow { display:none; gap:6px; padding:8px 12px; border-bottom:1px solid #30363d; }
+  #aiKeyRow.open, #aiPassRow.open { display:flex; }
+  #aiKeyRow input, #aiPassRow input { flex:1; background:#0d1117; color:#e6edf3; border:1px solid #30363d;
     border-radius:6px; padding:6px 8px; font-size:12px; }
-  #aiKeyRow button { background:#0d1117; color:#58a6ff; border:1px solid #30363d;
+  #aiKeyRow button, #aiPassRow button { background:#0d1117; color:#58a6ff; border:1px solid #30363d;
     border-radius:6px; padding:6px 10px; cursor:pointer; }
   #aiMsgs { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column;
     gap:10px; }
@@ -103,8 +110,12 @@
       <span id="aiVer"></span>
       <button id="aiClose">✕</button>
     </div>
+    <div id="aiPassRow">
+      <input id="aiPassIn" type="password" placeholder="StockLab password — unlocks ALL providers (easiest)">
+      <button id="aiPassSave">unlock</button>
+    </div>
     <div id="aiKeyRow">
-      <input id="aiKeyIn" type="password" placeholder="paste API key (stored only in this browser)">
+      <input id="aiKeyIn" type="password" placeholder="…or paste this provider's own API key (this browser only)">
       <button id="aiKeySave">save</button>
     </div>
     <div id="aiMsgs"></div>
@@ -112,9 +123,9 @@
       <textarea id="aiIn" placeholder="Ask about this company's data, or tell me to change the charts…"></textarea>
       <button id="aiSend">Send</button>
     </div>
-    <div id="aiNote">Key lives only in this browser. Model sees the data currently
-    charted. It can drive the app — try "compare NVDA and AMD gross margins over
-    15 years".</div>`;
+    <div id="aiNote">One StockLab password (🔑) unlocks all providers — keys stay
+    server-side. The model sees the data currently charted and can drive the app —
+    try "compare NVDA and AMD gross margins over 15 years".</div>`;
   document.body.appendChild(panel);
   const el = id => document.getElementById(id);
   if (typeof STOCKLAB_VERSION !== "undefined")
@@ -183,22 +194,34 @@
     }
     return rankModels(ids, P.rank);
   }
+  async function pcall(body) {   // call the password-gated proxy (v1.6.0)
+    const r = await fetch(PROXY, { method: "POST",
+      headers: { "content-type": "application/json",
+                 "x-stocklab-pass": store.pass },
+      body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+    return j;
+  }
   const _noted = {};   // one status note per provider per page load, no spam
   async function refreshModels(force) {
-    const prov = store.prov, key = store.keys[prov];
+    const prov = store.prov, key = store.keys[prov], viaProxy = !!store.pass;
     const cached = store.models[prov];
     setModelOptions((cached && cached.list.length ? cached.list
                      : PROVIDERS[prov].models));
-    if (!key) {
+    if (!key && !viaProxy) {
       if (!_noted[prov]) { _noted[prov] = 1;
         msg("act", PROVIDERS[prov].name + ": showing the BUILT-IN model list — " +
-          "tap 🔑 key and save your API key once to load the provider's live " +
-          "top-model list (auto-refreshed daily)."); }
+          "tap 🔑 and enter the StockLab password once (unlocks ALL providers), " +
+          "or save this provider's API key, to load the live top-model list."); }
       return;
     }
     if (!force && cached && Date.now() - cached.ts < 864e5) return;  // 24h cache
     try {
-      const list = await fetchModels(prov, key);
+      const list = viaProxy
+        ? rankModels((await pcall({ prov, op: "models" })).models || [],
+                     PROVIDERS[prov].rank)
+        : await fetchModels(prov, key);
       if (list.length) {
         store.models[prov] = { ts: Date.now(), list }; store.saveModels();
         setModelOptions(list);
@@ -219,12 +242,29 @@
   el("aiClear").onclick = () => { history = []; el("aiMsgs").innerHTML = ""; keyHint(); };
   provSel.onchange = () => { store.prov = provSel.value; store.saveProv();
     keyHint(); refreshModels(false); };
-  el("aiKeyBtn").onclick = () => el("aiKeyRow").classList.toggle("open");
+  el("aiKeyBtn").onclick = () => { el("aiKeyRow").classList.toggle("open");
+    el("aiPassRow").classList.toggle("open"); };
   el("aiKeySave").onclick = () => {
     const v = el("aiKeyIn").value.trim();
     if (v) { store.keys[store.prov] = v; store.saveKeys(); el("aiKeyIn").value = "";
-      el("aiKeyRow").classList.remove("open"); msg("act", PROVIDERS[store.prov].name + " key saved on this device.");
+      el("aiKeyRow").classList.remove("open"); el("aiPassRow").classList.remove("open");
+      msg("act", PROVIDERS[store.prov].name + " key saved on this device.");
       refreshModels(true); }
+  };
+  el("aiPassSave").onclick = async () => {
+    const v = el("aiPassIn").value.trim();
+    if (!v) return;
+    store.pass = v; store.savePass(); el("aiPassIn").value = "";
+    el("aiKeyRow").classList.remove("open"); el("aiPassRow").classList.remove("open");
+    try {
+      await pcall({ prov: "claude", op: "models" });
+      msg("act", "✓ StockLab password accepted — all 4 providers unlocked on this device.");
+      store.models = {}; store.saveModels();   // drop stale lists, refetch live
+      refreshModels(true);
+    } catch (e) {
+      store.pass = ""; store.savePass();
+      msg("err", "Password rejected: " + e.message);
+    }
   };
   refreshModels(false);
   el("aiSend").onclick = send;
@@ -232,8 +272,9 @@
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
 
   function keyHint() {
-    if (!store.keys[store.prov])
-      msg("act", "No " + PROVIDERS[store.prov].name + " key on this device yet — tap 🔑 key to add it once.");
+    if (!store.pass && !store.keys[store.prov])
+      msg("act", "Tap 🔑 and enter the StockLab password once — it unlocks all " +
+        "4 providers on this device (or paste a per-provider API key instead).");
   }
   function msg(cls, text) {
     const d = document.createElement("div");
@@ -377,8 +418,8 @@ Not investment advice; data may contain gaps.`;
     const q = el("aiIn").value.trim();
     if (!q) return;
     const key = store.keys[store.prov];
-    if (!key) { msg("err", "No " + PROVIDERS[store.prov].name +
-      " API key on this device. Tap 🔑 key and paste it once."); return; }
+    if (!key && !store.pass) { msg("err", "Tap 🔑 and enter the StockLab " +
+      "password (or a " + PROVIDERS[store.prov].name + " API key) once."); return; }
     el("aiIn").value = ""; msg("user", q);
     history.push({ role: "user", text: q });
     busy = true; el("aiSend").disabled = true;
@@ -386,7 +427,11 @@ Not investment advice; data may contain gaps.`;
     try {
       const sys = SYSTEM + "\n\n" + await buildContext();
       const recent = history.slice(-12);
-      const raw = await CALLERS[store.prov](key, modelIn.value.trim(), sys, recent);
+      const raw = store.pass
+        ? (await pcall({ prov: store.prov, op: "chat",
+            model: modelIn.value.trim(), system: sys,
+            messages: recent.map(m => ({ role: m.role, content: m.text })) })).text
+        : await CALLERS[store.prov](key, modelIn.value.trim(), sys, recent);
       wait.remove();
       const clean = applyAppBlock(raw);
       if (clean) msg("bot", clean);
@@ -396,7 +441,9 @@ Not investment advice; data may contain gaps.`;
       let hint = "";
       if (/failed to fetch/i.test(e.message))
         hint = " (This provider may not allow direct browser calls — try Claude or Gemini, or ask Claude-the-builder for the proxy option.)";
-      if (/401|invalid|auth/i.test(e.message))
+      if (/wrong stocklab password/i.test(e.message))
+        hint = " (Re-enter the StockLab password via 🔑.)";
+      else if (/401|invalid|auth/i.test(e.message))
         hint = " (Key rejected — re-enter it via 🔑, or the key may have expired.)";
       msg("err", PROVIDERS[store.prov].name + ": " + e.message + hint);
     }

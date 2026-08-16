@@ -21,6 +21,21 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.6.0 — 2026-08-16
+
+- **AI without pasting API keys** (`proxy/`): new password-gated Netlify
+  Function (`stocklab-ai-proxy.netlify.app`) holds the 4 provider keys
+  server-side in env vars — never in the public repo/site. Enter the ONE
+  StockLab password once per device (🔑 in the AI panel) and all providers +
+  live top-model lists work, on desktop and phone. Per-provider BYOK keys
+  still work as a fallback. Also fixes browser-CORS limits for DeepSeek/Kimi
+  (calls now originate server-side).
+- Verified end-to-end: wrong password → 401; live model lists for all 4
+  providers; chat round-trips for Gemini (gemini-3.1-pro-preview) and
+  DeepSeek. NOTE: Claude (no API credit balance) and Kimi (account suspended,
+  insufficient balance) need account top-ups on the provider side — the
+  plumbing is confirmed working.
+
 ## v1.5.0 — 2026-08-16
 
 - **Diluted share counts**: new chartable metric "Shares (wtd-avg diluted)"
