@@ -47,10 +47,25 @@
 
   /* ---------- styles ---------- */
   const css = `
-  #aiFab { position:fixed; right:18px; bottom:18px; z-index:50; background:#1f6feb;
-    color:#fff; border:none; border-radius:24px; padding:12px 18px; font-size:14px;
-    font-weight:600; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.5); }
-  #aiPanel { position:fixed; right:0; top:0; bottom:0; width:min(420px,100vw);
+  #slBar { position:fixed; top:0; left:0; right:0; z-index:70;
+    display:flex; gap:8px; align-items:center; padding:8px 12px;
+    background:rgba(13,17,23,.94); backdrop-filter:blur(6px);
+    border-bottom:1px solid #30363d; min-height:52px; box-sizing:border-box; }
+  #slBar select { background:#0d1117; color:#e6edf3; border:1px solid #30363d;
+    border-radius:6px; padding:6px 8px; font-size:12.5px; max-width:165px; }
+  #slBarIn { flex:1; min-width:110px; background:#161b22; color:#e6edf3;
+    border:1px solid #30363d; border-radius:8px; padding:8px 12px; font-size:13.5px; }
+  #slBarIn::placeholder { color:#6e7681; }
+  .slBarBtn { background:#161b22; color:#e6edf3; border:1px solid #30363d;
+    border-radius:8px; padding:7px 11px; font-size:14px; cursor:pointer; }
+  .slBarBtn:hover { border-color:#6e7681; }
+  #slBarSend { background:#1f6feb; border-color:#1f6feb; color:#fff; font-weight:700; }
+  #slBarMic.on { color:#f85149; border-color:#f85149; }
+  #slBarPill { display:none; color:#9aa4b2; }
+  #slBar.min #slBarIn, #slBar.min #aiProv, #slBar.min #aiModel,
+  #slBar.min #slBarMic, #slBar.min #slBarSend, #slBar.min #slBarAi { display:none; }
+  #slBar.min #slBarPill { display:inline-block; }
+  #aiPanel { position:fixed; right:0; top:52px; bottom:0; width:min(420px,100vw);
     z-index:60; background:#161b22; border-left:1px solid #30363d; display:none;
     flex-direction:column; font-size:13.5px; }
   #aiPanel.open { display:flex; }
@@ -86,26 +101,33 @@
     padding:0 16px; font-weight:600; cursor:pointer; }
   #aiSend:disabled { opacity:.5; }
   #aiNote { padding:4px 12px 10px; color:#6e7681; font-size:11px; }
-  #aiVer { color:#6e7681; font-size:11px; }
-  #aiTopBar { padding:2px 24px 10px; }
-  #aiTopIn { width:100%; max-width:760px; background:#161b22; color:#e6edf3;
-    border:1px solid #30363d; border-radius:8px; padding:10px 12px;
-    font-size:13.5px; }
-  #aiTopIn::placeholder { color:#6e7681; }`;
+  #aiVer { color:#6e7681; font-size:11px; }`;
   const st = document.createElement("style"); st.textContent = css;
   document.head.appendChild(st);
 
   /* ---------- UI ---------- */
-  const fab = document.createElement("button");
-  fab.id = "aiFab"; fab.textContent = "🤖 AI";
-  document.body.appendChild(fab);
+  // v1.8.0: one FIXED top bar consolidates the menu, the AI entry box, the
+  // provider/model pickers, dictation and send — stays put while scrolling,
+  // minimizable with the >< button (state remembered per device).
+  const bar = document.createElement("div");
+  bar.id = "slBar";
+  bar.innerHTML = `
+    <span id="slMenuSlot"></span>
+    <button class="slBarBtn" id="slBarAi" title="open / close the AI panel">🤖</button>
+    <input id="slBarIn" placeholder="Ask StockLab AI — about any company's 20-year data, or tell it what to chart…">
+    <select id="aiProv" title="AI provider"></select>
+    <select id="aiModel" title="model — list auto-updates from the provider"></select>
+    <button class="slBarBtn" id="slBarMic" title="dictate your question">🎤</button>
+    <button class="slBarBtn" id="slBarSend" title="send to the AI">↑</button>
+    <button class="slBarBtn" id="slBarPill">🤖 Ask StockLab AI</button>
+    <button class="slBarBtn" id="slBarMin" title="minimize / expand the chat box">&gt;&lt;</button>`;
+  document.body.prepend(bar);
+  document.body.style.paddingTop = "56px";
   const panel = document.createElement("div");
   panel.id = "aiPanel";
   panel.innerHTML = `
     <div id="aiHead">
-      <select id="aiProv"></select>
-      <select id="aiModel" title="model — list auto-updates from the provider"></select>
-      <button id="aiKeyBtn" title="set API key for this provider">🔑 key</button>
+      <button id="aiKeyBtn" title="set the StockLab password or an API key">🔑 key</button>
       <button id="aiClear" title="clear conversation">↺</button>
       <span id="aiVer"></span>
       <button id="aiClose">✕</button>
@@ -130,23 +152,53 @@
   const el = id => document.getElementById(id);
   if (typeof STOCKLAB_VERSION !== "undefined")
     el("aiVer").textContent = "StockLab " + STOCKLAB_VERSION;
-  // chat box at the top of every page — sends straight into the assistant
-  const topBar = document.createElement("div");
-  topBar.id = "aiTopBar";
-  topBar.innerHTML = `<input id="aiTopIn" placeholder="🤖 Ask StockLab AI — about any company's 20-year data, or tell it what to chart…">`;
-  const hdr = document.querySelector("header");
-  if (hdr) hdr.insertAdjacentElement("afterend", topBar);
-  topBar.querySelector("#aiTopIn").addEventListener("keydown", e => {
-    if (e.key === "Enter") {
-      const v = e.target.value.trim();
-      if (!v) return;
-      e.target.value = "";
-      panel.classList.add("open");
-      el("aiIn").value = v;
-      keyHint(); refreshModels(false);
-      send();
-    }
-  });
+
+  /* ---------- top-bar behaviour (v1.8.0) ---------- */
+  const barIn = el("slBarIn");
+  function sendFromBar() {
+    const v = barIn.value.trim();
+    panel.classList.add("open"); keyHint(); refreshModels(false);
+    if (!v) return;
+    barIn.value = "";
+    el("aiIn").value = v;
+    send();
+  }
+  el("slBarSend").onclick = sendFromBar;
+  barIn.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); sendFromBar(); } });
+  el("slBarAi").onclick = () => {
+    panel.classList.toggle("open");
+    if (panel.classList.contains("open")) { keyHint(); refreshModels(false); } };
+  el("slBarPill").onclick = () => setMin(false);
+  const LS_MIN = "mfdb_bar_min";
+  function setMin(m) {
+    bar.classList.toggle("min", m);
+    localStorage.setItem(LS_MIN, m ? "1" : "0");
+    el("slBarMin").textContent = m ? "<>" : "><";
+    el("slBarMin").title = m ? "expand the chat box" : "minimize the chat box";
+  }
+  el("slBarMin").onclick = () => setMin(!bar.classList.contains("min"));
+  setMin(localStorage.getItem(LS_MIN) === "1");
+  // 🎤 dictation via the browser's speech recognition (where supported)
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { el("slBarMic").style.display = "none"; }
+  else {
+    let rec = null;
+    el("slBarMic").onclick = () => {
+      if (rec) { rec.stop(); return; }
+      rec = new SR(); rec.interimResults = true; rec.continuous = false;
+      const base = barIn.value;
+      rec.onresult = ev => {
+        let t = "";
+        for (const r of ev.results) t += r[0].transcript;
+        barIn.value = (base ? base + " " : "") + t;
+      };
+      rec.onend = () => { rec = null; el("slBarMic").classList.remove("on"); };
+      rec.onerror = rec.onend;
+      el("slBarMic").classList.add("on");
+      rec.start();
+    };
+  }
   const provSel = el("aiProv"), modelIn = el("aiModel");
   Object.entries(PROVIDERS).forEach(([k, p]) => {
     const o = document.createElement("option"); o.value = k; o.textContent = p.name;
@@ -237,7 +289,6 @@
   modelIn.onchange = () => { store.chosen[store.prov] = modelIn.value;
     store.saveChosen(); };
 
-  fab.onclick = () => { panel.classList.add("open"); keyHint(); refreshModels(false); };
   el("aiClose").onclick = () => panel.classList.remove("open");
   el("aiClear").onclick = () => { history = []; el("aiMsgs").innerHTML = ""; keyHint(); };
   provSel.onchange = () => { store.prov = provSel.value; store.saveProv();

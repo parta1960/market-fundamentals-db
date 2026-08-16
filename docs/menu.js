@@ -4,11 +4,11 @@
  * AI settings saved on this device. */
 (() => {
   const css = `
-  #slMenuBtn { position:fixed; right:86px; bottom:18px; z-index:50;
-    background:#21262d; color:#e6edf3; border:1px solid #30363d;
-    border-radius:24px; padding:12px 16px; font-size:14px; font-weight:600;
-    cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.5); }
-  #slMenu { position:fixed; right:18px; bottom:70px; z-index:55; width:270px;
+  #slMenuBtn { background:#21262d; color:#e6edf3; border:1px solid #30363d;
+    border-radius:8px; padding:7px 12px; font-size:13.5px; font-weight:600;
+    cursor:pointer; white-space:nowrap; }
+  #slMenuBtn.fallback { position:fixed; left:12px; top:10px; z-index:75; }
+  #slMenu { position:fixed; left:12px; top:56px; z-index:75; width:270px;
     background:#161b22; border:1px solid #30363d; border-radius:10px;
     box-shadow:0 8px 28px rgba(0,0,0,.6); display:none; overflow:hidden;
     font-size:13.5px; }
@@ -26,7 +26,10 @@
 
   const btn = document.createElement("button");
   btn.id = "slMenuBtn"; btn.textContent = "☰ Menu";
-  document.body.appendChild(btn);
+  // v1.8.0: lives at the TOP LEFT, inside the fixed bar's menu slot
+  const slot = document.getElementById("slMenuSlot");
+  if (slot) slot.appendChild(btn);
+  else { btn.classList.add("fallback"); document.body.appendChild(btn); }
 
   const ver = typeof STOCKLAB_VERSION !== "undefined" ? STOCKLAB_VERSION : "";
   const menu = document.createElement("div");

@@ -21,6 +21,21 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.8.0 — 2026-08-16
+
+- **Fixed top bar** on every page (stays put while scrolling): ☰ Menu at the
+  TOP LEFT, and the AI consolidated into one strip — 🤖 panel toggle, the
+  "Ask StockLab AI" input, provider + model dropdowns (the pickers now live
+  on the bar, like a chat app), 🎤 **dictation** (browser speech recognition,
+  hidden where unsupported), a blue **↑ send** button, and a **>< minimize**
+  button that collapses the chat box to a small pill (state remembered per
+  device; click the pill or <> to expand). The old floating AI button and the
+  in-page chat box are gone — replaced by the bar. The AI panel now opens
+  below the bar.
+- Not adopted from the reference screenshot: file attachments ("+") and an
+  effort/mode switch ("Auto") — neither maps to anything functional in
+  StockLab today (the AI already receives the charted data automatically).
+
 ## v1.7.0 — 2026-08-16
 
 - **☰ Menu button** (`docs/menu.js`, next to the AI button on every page):
