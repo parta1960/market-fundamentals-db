@@ -10,18 +10,29 @@
  * p=quarters back (0=max), c=compare tickers).
  */
 (() => {
-  const LS_KEYS = "mfdb_ai_keys", LS_PROV = "mfdb_ai_prov";
+  const LS_KEYS = "mfdb_ai_keys", LS_PROV = "mfdb_ai_prov",
+        LS_MODELS = "mfdb_ai_models", LS_CHOSEN = "mfdb_ai_model_choice";
+  // fallback lists only — the live list is fetched from each provider's own
+  // /models endpoint with your key, so new top models appear automatically.
   const PROVIDERS = {
-    claude:   { name: "Claude",   model: "claude-sonnet-4-5" },
-    gemini:   { name: "Gemini",   model: "gemini-2.5-flash" },
-    deepseek: { name: "DeepSeek", model: "deepseek-chat" },
-    kimi:     { name: "Kimi",     model: "kimi-k3" },
+    claude:   { name: "Claude",   models: ["claude-sonnet-4-5", "claude-opus-4-1", "claude-haiku-4-5"],
+                rank: ["fable", "opus", "sonnet", "haiku"] },
+    gemini:   { name: "Gemini",   models: ["gemini-2.5-pro", "gemini-2.5-flash"],
+                rank: ["pro", "flash"] },
+    deepseek: { name: "DeepSeek", models: ["deepseek-reasoner", "deepseek-chat"],
+                rank: ["reasoner", "chat"] },
+    kimi:     { name: "Kimi",     models: ["kimi-k3", "kimi-k2-0905-preview"],
+                rank: ["k4", "k3", "k2"] },
   };
   const store = {
     keys: JSON.parse(localStorage.getItem(LS_KEYS) || "{}"),
     saveKeys() { localStorage.setItem(LS_KEYS, JSON.stringify(this.keys)); },
     prov: localStorage.getItem(LS_PROV) || "claude",
     saveProv() { localStorage.setItem(LS_PROV, this.prov); },
+    models: JSON.parse(localStorage.getItem(LS_MODELS) || "{}"),   // {prov:{ts,list}}
+    saveModels() { localStorage.setItem(LS_MODELS, JSON.stringify(this.models)); },
+    chosen: JSON.parse(localStorage.getItem(LS_CHOSEN) || "{}"),   // {prov:id}
+    saveChosen() { localStorage.setItem(LS_CHOSEN, JSON.stringify(this.chosen)); },
   };
   let history = [];   // [{role:"user"|"assistant", text}]
   let busy = false;
@@ -79,7 +90,7 @@
   panel.innerHTML = `
     <div id="aiHead">
       <select id="aiProv"></select>
-      <input id="aiModel" title="model name">
+      <select id="aiModel" title="model — list auto-updates from the provider"></select>
       <button id="aiKeyBtn" title="set API key for this provider">🔑 key</button>
       <button id="aiClear" title="clear conversation">↺</button>
       <button id="aiClose">✕</button>
@@ -103,19 +114,81 @@
     const o = document.createElement("option"); o.value = k; o.textContent = p.name;
     provSel.appendChild(o);
   });
-  provSel.value = store.prov; modelIn.value = PROVIDERS[store.prov].model;
+  provSel.value = store.prov;
 
-  fab.onclick = () => { panel.classList.add("open"); keyHint(); };
+  /* ----- model list: live from each provider's /models endpoint ----- */
+  function rankModels(ids, prec) {
+    const score = id => { const i = prec.findIndex(p => id.includes(p));
+      return i < 0 ? prec.length : i; };
+    return [...new Set(ids)].sort((a, b) => score(a) - score(b) ||
+      b.localeCompare(a, undefined, { numeric: true }));
+  }
+  function setModelOptions(list) {
+    modelIn.innerHTML = "";
+    list.forEach(id => { const o = document.createElement("option");
+      o.value = o.textContent = id; modelIn.appendChild(o); });
+    const pick = store.chosen[store.prov];
+    modelIn.value = list.includes(pick) ? pick : list[0];
+  }
+  async function fetchModels(prov, key) {
+    const P = PROVIDERS[prov];
+    let ids = [];
+    if (prov === "claude") {
+      const r = await fetch("https://api.anthropic.com/v1/models?limit=100", {
+        headers: { "x-api-key": key, "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true" } });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || r.status);
+      ids = (j.data || []).map(m => m.id);
+    } else if (prov === "gemini") {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=" + key);
+      const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || r.status);
+      ids = (j.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+        .map(m => (m.name || "").replace("models/", ""))
+        .filter(n => !/embed|aqa|imagen|veo|tts|audio|image|live/.test(n));
+    } else {
+      const base = prov === "deepseek" ? "https://api.deepseek.com"
+                                       : "https://api.moonshot.ai/v1";
+      const r = await fetch(base + "/models",
+        { headers: { authorization: "Bearer " + key } });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || j.error || r.status);
+      ids = (j.data || []).map(m => m.id);
+    }
+    return rankModels(ids, P.rank);
+  }
+  async function refreshModels(force) {
+    const prov = store.prov, key = store.keys[prov];
+    const cached = store.models[prov];
+    setModelOptions((cached && cached.list.length ? cached.list
+                     : PROVIDERS[prov].models));
+    if (!key) return;
+    if (!force && cached && Date.now() - cached.ts < 864e5) return;  // 24h cache
+    try {
+      const list = await fetchModels(prov, key);
+      if (list.length) {
+        store.models[prov] = { ts: Date.now(), list }; store.saveModels();
+        setModelOptions(list);
+        msg("act", PROVIDERS[prov].name + " model list refreshed (" +
+          list.length + " available, top: " + list[0] + ").");
+      }
+    } catch (e) { /* keep fallback list; chat call will surface real errors */ }
+  }
+  modelIn.onchange = () => { store.chosen[store.prov] = modelIn.value;
+    store.saveChosen(); };
+
+  fab.onclick = () => { panel.classList.add("open"); keyHint(); refreshModels(false); };
   el("aiClose").onclick = () => panel.classList.remove("open");
   el("aiClear").onclick = () => { history = []; el("aiMsgs").innerHTML = ""; keyHint(); };
   provSel.onchange = () => { store.prov = provSel.value; store.saveProv();
-    modelIn.value = PROVIDERS[store.prov].model; keyHint(); };
+    keyHint(); refreshModels(false); };
   el("aiKeyBtn").onclick = () => el("aiKeyRow").classList.toggle("open");
   el("aiKeySave").onclick = () => {
     const v = el("aiKeyIn").value.trim();
     if (v) { store.keys[store.prov] = v; store.saveKeys(); el("aiKeyIn").value = "";
-      el("aiKeyRow").classList.remove("open"); msg("act", PROVIDERS[store.prov].name + " key saved on this device."); }
+      el("aiKeyRow").classList.remove("open"); msg("act", PROVIDERS[store.prov].name + " key saved on this device.");
+      refreshModels(true); }
   };
+  refreshModels(false);
   el("aiSend").onclick = send;
   el("aiIn").addEventListener("keydown", e => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });

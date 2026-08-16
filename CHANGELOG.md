@@ -21,6 +21,16 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.3.1 — 2026-08-16
+
+- `docs/chat.js`: model picker is now a dropdown fed LIVE from each provider's
+  own `/models` API (Anthropic, Gemini, DeepSeek, Moonshot) using the user's
+  key — new top models appear automatically, no site update needed. Ranked
+  best-first per provider (Fable/Opus > Sonnet > Haiku; Pro > Flash; Reasoner >
+  Chat; K4 > K3 > K2; newest version first), 24h cache, refreshed on panel
+  open / provider switch / key save; per-provider choice remembered. Hardcoded
+  fallback list only when no key or the fetch fails.
+
 ## v1.3.0 — 2026-08-16
 
 - `docs/chat.js` (new): built-in AI analyst. Provider menu (Claude / Gemini /
