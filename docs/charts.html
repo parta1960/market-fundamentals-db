@@ -145,6 +145,23 @@ async function getHist(t) {
 
 function metricInfo(k) { return MAN.metrics.find(m => m.k === k) || {k, label:k, unit:"x"}; }
 
+// ---- stock-split markers (v1.5.0) ----------------------------------------
+// The exporter ships doc.splits = [{d:"2014-06-09", r:7}, ...]. On every
+// chart the FIRST data point on/after each split date is drawn as a pink
+// diamond so split handling is verifiable by eye (hover shows ratio + date).
+const SPLIT_C = "#db61a2";
+const fRatio = r => r >= 1 ? (+(+r).toFixed(2)) + ":1" : "1:" + (+(1 / r).toFixed(2));
+function splitMarks(hist, labels, prefix) {
+  const m = {};
+  (hist.splits || []).forEach(s => {
+    const i = hist.quarters.findIndex(d => d >= s.d);      // first qtr after split
+    if (i <= 0) return;   // need data on BOTH sides of the split to verify it
+    const j = labels.indexOf(hist.quarters[i]);            // visible in range?
+    if (j >= 0) m[j] = (prefix || "") + fRatio(s.r) + " split on " + s.d;
+  });
+  return m;
+}
+
 function sliceN(arr, n) { return n && arr.length > n ? arr.slice(arr.length - n) : arr; }
 
 const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -179,7 +196,12 @@ function mkChart(canvas, labels, datasets, unit) {
     type: "line",
     data: { labels, datasets: datasets.map((d, i) => ({
       ...d, borderColor: SLOTS[i], backgroundColor: SLOTS[i],
-      borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, spanGaps: false })) },
+      borderWidth: 2, pointHoverRadius: 5, spanGaps: false,
+      pointRadius: c => d.marks && d.marks[c.dataIndex] ? 5 : 0,
+      pointStyle: c => d.marks && d.marks[c.dataIndex] ? "rectRot" : "circle",
+      pointBackgroundColor: c => d.marks && d.marks[c.dataIndex] ? SPLIT_C : SLOTS[i],
+      pointBorderColor: c => d.marks && d.marks[c.dataIndex] ? "#fff" : SLOTS[i],
+      pointBorderWidth: c => d.marks && d.marks[c.dataIndex] ? 1.5 : 0 })) },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: "index", intersect: false },
@@ -198,7 +220,9 @@ function mkChart(canvas, labels, datasets, unit) {
           backgroundColor: "#1c2128", borderColor: "#30363d", borderWidth: 1,
           titleColor: "#e6edf3", bodyColor: "#e6edf3",
           callbacks: { label: c => (c.dataset.label ? c.dataset.label + ": " : "") +
-                                   fmt(c.parsed.y, unit) } },
+                                   fmt(c.parsed.y, unit),
+                       afterLabel: c => c.dataset.marks && c.dataset.marks[c.dataIndex]
+                                   ? "◆ " + c.dataset.marks[c.dataIndex] : "" } },
       },
     },
   });
@@ -242,16 +266,23 @@ async function draw() {
     const ds = [main, ...others].map(h => {
       // align by NEAREST quarter (±45d) — fiscal calendars differ across firms
       const times = h.quarters.map(q => Date.parse(q));
-      const data = labels.map(q => {
+      const idxs = labels.map(q => {
         const t0 = Date.parse(q);
         let best = -1, bd = 46 * 864e5;
         for (let i = 0; i < times.length; i++) {
           const d = Math.abs(times[i] - t0);
           if (d < bd) { bd = d; best = i; }
         }
-        return best >= 0 ? ((h.series[k] || [])[best] ?? null) : null;
+        return best;
       });
-      return { label: h.ticker, data };
+      const data = idxs.map(b => b >= 0 ? ((h.series[k] || [])[b] ?? null) : null);
+      const marks = {};
+      (h.splits || []).forEach(s => {
+        const i = h.quarters.findIndex(d => d >= s.d);
+        const j = i > 0 ? idxs.indexOf(i) : -1;   // need data on both sides
+        if (j >= 0) marks[j] = h.ticker + " " + fRatio(s.r) + " split on " + s.d;
+      });
+      return { label: h.ticker, data, marks };
     });
     charts.push(mkChart(wrap.querySelector("canvas"), labels, ds, mi.unit));
     ds.forEach(d => tableCols.push({ head: d.label, data: d.data, unit: mi.unit }));
@@ -260,17 +291,22 @@ async function draw() {
     for (const k of state.metrics.slice(0, 6)) {
       const mi = metricInfo(k);
       const data = sliceN(main.series[k] || main.quarters.map(() => null), state.per);
+      const marks = splitMarks(main, labels);
       const wrap = document.createElement("div"); wrap.className = "panel";
       wrap.innerHTML = `<h3>${mi.label}</h3><div class="meta">${main.ticker} · quarterly</div><div class="cwrap"><canvas></canvas></div>`;
       $("charts").appendChild(wrap);
-      charts.push(mkChart(wrap.querySelector("canvas"), labels, [{ label: "", data }], mi.unit));
+      charts.push(mkChart(wrap.querySelector("canvas"), labels, [{ label: "", data, marks }], mi.unit));
       tableCols.push({ head: mi.label, data, unit: mi.unit });
     }
   }
   renderTable(labels, tableCols);
-  $("status").textContent = compare && state.metrics.length > 1
+  const anySplits = [main].concat(compare ? state.cmp.map(t => CACHE[t]).filter(Boolean) : [])
+    .some(h => (h.splits || []).length);
+  $("status").innerHTML = compare && state.metrics.length > 1
     ? "Compare mode uses the first selected metric only."
-    : "";
+    : (anySplits
+       ? `<span style="color:${SPLIT_C}">◆</span> = first data point after a stock split — hover it for the ratio and date`
+       : "");
 }
 
 function buildMetricPanel() {

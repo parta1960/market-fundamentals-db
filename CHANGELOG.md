@@ -21,6 +21,26 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.5.0 — 2026-08-16
+
+- **Diluted share counts**: new chartable metric "Shares (wtd-avg diluted)"
+  (EDGAR weighted-average diluted, 501/515 tickers, median ~17y depth),
+  split-adjusted to today's basis like all displayed share data. Guarded two
+  ways: rolling-median spike filter + absolute anchor (diluted must be within
+  0.5x–2x of the outstanding count that quarter — catches multi-quarter ~1000x
+  units bugs in some filings, e.g. NVDA 2010-13).
+- **Split markers on every chart**: the first data point after each stock split
+  is drawn as a pink diamond (hover = ratio + date, e.g. "7:1 split on
+  2014-06-09") so split handling is verifiable by eye. Works in compare mode
+  (each ticker's own splits, labeled). Markers require data on both sides of
+  the split; ticker JSONs now carry a `splits` array.
+- **AI chat model lists**: built-in fallback lists refreshed to the current
+  top models (Claude Fable 5 / Opus 5 / Sonnet 5; Gemini 3.1 Pro / 3.7 Flash;
+  DeepSeek V4 Pro/Flash; Kimi K3). The panel now SAYS when it is showing the
+  built-in list (no API key saved yet) or when a live refresh fails, instead
+  of silently showing a stale list — save a key once (🔑) to get the live,
+  auto-updating top-model list.
+
 ## v1.4.2 — 2026-08-16
 
 - Hotfix: the Sunday universe refresh returned a company (CME) with a missing

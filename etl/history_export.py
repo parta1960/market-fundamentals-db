@@ -70,6 +70,7 @@ METRICS = [
     ("cash", "Cash & equivalents", "usd", "Balance sheet"),
     ("total_debt", "Total debt", "usd", "Balance sheet"),
     ("shares", "Shares outstanding", "cnt", "Balance sheet"),
+    ("shares_diluted", "Shares (wtd-avg diluted)", "cnt", "Balance sheet"),
     ("gross_margin", "Gross margin", "pct", "Margins & growth"),
     ("op_margin", "Operating margin", "pct", "Margins & growth"),
     ("net_margin", "Net margin", "pct", "Margins & growth"),
@@ -256,6 +257,48 @@ def build():
             if c in wide.columns:
                 wide[c] = wide[c] / split_factor
 
+    # ---- diluted weighted-average share count (v1.5.0) --------------------
+    # EDGAR wtd-avg DILUTED counts, converted to today-adjusted basis (same
+    # split machinery), spike-guarded, joined at each fiscal quarter end.
+    # Display-only series (no ratios derive from it), so no basis round-trip.
+    if split_factor is not None and not shares_raw.empty:
+        d = shares_raw[shares_raw.source == "edgar:wavg-diluted"].dropna(
+            subset=["shares", "as_of"]).copy()
+        d = d[d.shares > 0]
+        d["as_of"] = pd.to_datetime(d["as_of"])
+        dparts = []
+        for t, g in d.groupby("ticker"):
+            g = g.copy()
+            f = pd.Series(_factor_after(ev, t, g.as_of), index=g.index)
+            g["shares_diluted"] = g.shares * f
+            g = g.sort_values("as_of").drop_duplicates(["as_of"], keep="last")
+            med = g.shares_diluted.rolling(7, center=True, min_periods=3).median()
+            ok = (g.shares_diluted / med).between(0.55, 1.8) | med.isna()
+            dparts.append(g.loc[ok, ["ticker", "as_of", "shares_diluted"]])
+        if dparts:
+            dil = pd.concat(dparts, ignore_index=True).sort_values("as_of")
+            wide = wide.sort_values("fiscal_date_ending")
+            wide = pd.merge_asof(
+                wide, dil.rename(columns={"as_of": "fiscal_date_ending"}),
+                on="fiscal_date_ending", by="ticker", direction="backward",
+                tolerance=pd.Timedelta(days=10))
+            # absolute anchor: diluted must be within 0.5x-2x of the corrected
+            # outstanding count at the same quarter (both today-adjusted here).
+            # Catches BLOCKS of ~1000x units bugs that a rolling median passes
+            # when consecutive filings share the bug (e.g. NVDA 2010-13).
+            rr = wide["shares_diluted"] / wide["shares"]
+            wide.loc[~rr.between(0.5, 2.0), "shares_diluted"] = float("nan")
+
+    # ---- split events per ticker (v1.5.0): charts mark the first data point
+    # after each split so split handling is verifiable by eye.
+    splits_by = {}
+    if split_factor is not None:
+        for t, g in ev.groupby("ticker"):
+            splits_by[t] = [
+                {"d": r.date.strftime("%Y-%m-%d"),
+                 "r": _sig(r.split_coefficient, 4)}
+                for r in g.sort_values("date").itertuples(index=False)]
+
     names = {}
     if not comp.empty:
         c = comp.drop_duplicates("ticker")
@@ -276,6 +319,8 @@ def build():
             "series": {k: [_sig(v) for v in g[k]] if k in g.columns
                        else [None] * len(g) for k in keys},
         }
+        if splits_by.get(t):
+            doc["splits"] = splits_by[t]
         # drop metrics that are entirely null for this ticker (smaller files)
         doc["series"] = {k: v for k, v in doc["series"].items()
                         if any(x is not None for x in v)}

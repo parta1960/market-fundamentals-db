@@ -14,14 +14,15 @@
         LS_MODELS = "mfdb_ai_models", LS_CHOSEN = "mfdb_ai_model_choice";
   // fallback lists only — the live list is fetched from each provider's own
   // /models endpoint with your key, so new top models appear automatically.
+  // Snapshot refreshed 2026-08-16 (v1.5.0); shown ONLY until a key is saved.
   const PROVIDERS = {
-    claude:   { name: "Claude",   models: ["claude-sonnet-4-5", "claude-opus-4-1", "claude-haiku-4-5"],
+    claude:   { name: "Claude",   models: ["claude-fable-5", "claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"],
                 rank: ["fable", "opus", "sonnet", "haiku"] },
-    gemini:   { name: "Gemini",   models: ["gemini-2.5-pro", "gemini-2.5-flash"],
+    gemini:   { name: "Gemini",   models: ["gemini-3.1-pro-preview", "gemini-3.7-flash", "gemini-2.5-pro"],
                 rank: ["pro", "flash"] },
-    deepseek: { name: "DeepSeek", models: ["deepseek-reasoner", "deepseek-chat"],
-                rank: ["reasoner", "chat"] },
-    kimi:     { name: "Kimi",     models: ["kimi-k3", "kimi-k2-0905-preview"],
+    deepseek: { name: "DeepSeek", models: ["deepseek-v4-pro", "deepseek-v4-flash"],
+                rank: ["v4-pro", "pro", "v4-flash", "reasoner", "flash", "chat"] },
+    kimi:     { name: "Kimi",     models: ["kimi-k3", "kimi-k2.7-code", "kimi-k2.6"],
                 rank: ["k4", "k3", "k2"] },
   };
   const store = {
@@ -182,22 +183,33 @@
     }
     return rankModels(ids, P.rank);
   }
+  const _noted = {};   // one status note per provider per page load, no spam
   async function refreshModels(force) {
     const prov = store.prov, key = store.keys[prov];
     const cached = store.models[prov];
     setModelOptions((cached && cached.list.length ? cached.list
                      : PROVIDERS[prov].models));
-    if (!key) return;
+    if (!key) {
+      if (!_noted[prov]) { _noted[prov] = 1;
+        msg("act", PROVIDERS[prov].name + ": showing the BUILT-IN model list — " +
+          "tap 🔑 key and save your API key once to load the provider's live " +
+          "top-model list (auto-refreshed daily)."); }
+      return;
+    }
     if (!force && cached && Date.now() - cached.ts < 864e5) return;  // 24h cache
     try {
       const list = await fetchModels(prov, key);
       if (list.length) {
         store.models[prov] = { ts: Date.now(), list }; store.saveModels();
         setModelOptions(list);
-        msg("act", PROVIDERS[prov].name + " model list refreshed (" +
+        msg("act", PROVIDERS[prov].name + " LIVE model list loaded (" +
           list.length + " available, top: " + list[0] + ").");
       }
-    } catch (e) { /* keep fallback list; chat call will surface real errors */ }
+    } catch (e) {
+      if (!_noted[prov]) { _noted[prov] = 1;
+        msg("err", PROVIDERS[prov].name + " model-list refresh failed (" +
+          (e.message || e) + ") — showing the built-in list instead."); }
+    }
   }
   modelIn.onchange = () => { store.chosen[store.prov] = modelIn.value;
     store.saveChosen(); };
