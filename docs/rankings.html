@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — Rankings</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.15.0"></script>
+<script src="version.js?v=v1.16.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -89,9 +89,11 @@
   <span class="r2hi">green ≥ 0.8</span> (the slope is a faithful summary),
   <span class="r2mid">amber 0.5–0.8</span> (trend with real wobble),
   <span class="r2lo">grey &lt; 0.5</span> (the slope is NOT a reliable
-  description — treat with caution). Growth %/yr restates the slope as a
-  percentage of the metric's mean level (blank when the level is too near
-  zero for the ratio to mean anything). Click any column header to re-sort;
+  description — treat with caution). <b>%EPS / %Rev/sh / …</b> (v1.16.0) is
+  the UNITLESS trend measure: the slope divided by the metric's LATEST value
+  (e.g. %EPS = EPS slope $/yr ÷ current TTM EPS), per year — so companies of
+  any size compare directly. Blank when the latest value is near or below
+  zero, where a percentage would be noise. Click any column header to re-sort;
   click a ticker for its history charts. Educational tool, not investment
   advice — <a href="https://github.com/parta1960/market-fundamentals-db">methodology</a>.
 </footer>
@@ -100,6 +102,9 @@
 const $ = id => document.getElementById(id);
 const METRIC_LABEL = { eps: "EPS", rps: "Rev/sh", fps: "FCF/sh",
                        bps: "Book/sh", gm: "Gross margin", om: "Op margin" };
+// v1.16.0 unitless names: %X = slope ÷ latest value, per year
+const PCT_NAME = { eps: "%EPS", rps: "%Rev/sh", fps: "%FCF/sh",
+                   bps: "%Book/sh", gm: "%GM", om: "%OM" };
 const PCT_METRICS = new Set(["gm", "om"]);        // slopes in pts/yr, not $/yr
 let RATIOS = [], TRW = {}, trWin = "40";
 let sortKey = "lm", sortDir = -1;
@@ -109,20 +114,23 @@ async function loadWindow(w) {
   try {
     const r = await fetch("data/trends_" + w + ".json");
     if (!r.ok) return false;
-    TRW[w] = (await r.json()).t || {};
+    const j = await r.json();
+    TRW[w] = { t: j.t || {}, fields: j.fields || ["lg", "lr", "lm", "pg", "n"] };
     return true;
   } catch (e) { return false; }
 }
 
 function buildRows() {
-  const m = $("metric").value, w = TRW[trWin] || {};
+  const m = $("metric").value, cur = TRW[trWin] || {};
+  const w = cur.t || {}, F = cur.fields || [];
+  const gi = k => F.indexOf(k);
   const out = [];
   for (const x of RATIOS) {
     const v = (w[x.ticker] || {})[m];
     if (!v) continue;                              // no fit for this window
     out.push({ ticker: x.ticker, name: x.name || "", sector: x.sector || "",
-               lg: v[0], lr: v[1], lm: v[2], n: v[3],
-               level: m === "eps" ? x.eps_ttm : null });
+               lg: v[gi("lg")], lr: v[gi("lr")], lm: v[gi("lm")],
+               pg: gi("pg") >= 0 ? v[gi("pg")] : null, n: v[gi("n")] });
   }
   return out;
 }
@@ -152,12 +160,13 @@ function render() {
     ["rank", "#", ""], ["ticker", "Ticker", "l"], ["name", "Company", "l"],
     ["sector", "Sector", "l"],
     ["lm", METRIC_LABEL[m] + " slope " + slopeUnit, ""],
-    ["lr", "Fit R²", ""], ["lg", "Growth %/yr", ""], ["n", "Quarters", ""],
+    ["lr", "Fit R²", ""], ["pg", PCT_NAME[m] + " /yr", ""], ["n", "Quarters", ""],
   ];
   document.querySelector("thead").innerHTML = "<tr>" + cols.map(([k, h, cls]) =>
     `<th class="${cls}${k === sortKey ? " sorted" : ""}" data-k="${k}">${h}${k === sortKey ? (sortDir < 0 ? " ↓" : " ↑") : ""}</th>`).join("") + "</tr>";
   document.querySelector("tbody").innerHTML = rows.map((r, i) => {
-    const tip = ` title="linear fit over ${r.n} quarters — slope ${fSlope(r.lm, m)}/yr, R²=${r.lr}"`;
+    const tip = ` title="linear fit over ${r.n} quarters — slope ${fSlope(r.lm, m)}/yr; ` +
+      `${PCT_NAME[m]} = slope ÷ latest value = ${fPct(r.pg)}/yr; R²=${r.lr}"`;
     return "<tr>" +
       `<td>${i + 1}</td>` +
       `<td class="l tick"><a style="color:inherit;text-decoration:none" href="charts.html?t=${r.ticker}">${r.ticker}</a> ` +
@@ -165,7 +174,7 @@ function render() {
       `<td class="l name">${r.name}</td><td class="l">${r.sector}</td>` +
       `<td class="${r.lm >= 0 ? "pos" : "neg"}"${tip}>${fSlope(r.lm, m)}</td>` +
       `<td class="${r2cls(r.lr)}"${tip}>${r.lr.toFixed(2)}</td>` +
-      `<td class="${typeof r.lg === "number" ? (r.lg >= 0 ? "pos" : "neg") : ""}">${fPct(r.lg)}</td>` +
+      `<td class="${typeof r.pg === "number" ? (r.pg >= 0 ? "pos" : "neg") : ""}"${tip}>${fPct(r.pg)}</td>` +
       `<td>${r.n}</td></tr>`;
   }).join("");
   if (window.__sl) window.__sl.paint();
@@ -200,8 +209,8 @@ Promise.all([
 })
 .catch(e => { $("status").textContent = "Failed to load data (" + e.message + ")."; });
 </script>
-<script src="chat.js?v=v1.15.0" defer></script>
-<script src="menu.js?v=v1.15.0" defer></script>
-<script src="stocklab.js?v=v1.15.0" defer></script>
+<script src="chat.js?v=v1.16.0" defer></script>
+<script src="menu.js?v=v1.16.0" defer></script>
+<script src="stocklab.js?v=v1.16.0" defer></script>
 </body>
 </html>

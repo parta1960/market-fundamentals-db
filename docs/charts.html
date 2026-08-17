@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — History Charts</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.15.0"></script>
-<script src="vendor/chart.umd.min.js?v=v1.15.0"></script>
+<script src="version.js?v=v1.16.0"></script>
+<script src="vendor/chart.umd.min.js?v=v1.16.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -126,10 +126,11 @@
   split-adjusted to today's basis for continuity (Yahoo-comparable).
   Each chart carries a dotted LINEAR fit over the VISIBLE range, parameters in
   the corner table: y = c + m·t with t in years (≥6 points, negatives allowed),
-  so c is the level at the start of the range, m the change per year and R² the
-  share of variance the straight line explains — low R² means the trend line is
-  a poor summary of that series. The fit recomputes automatically as new
-  quarters arrive.
+  so c is the level at the start of the range, m the change per year, % the
+  UNITLESS trend (%EPS-style: slope ÷ the latest value — blank when that value
+  is near/below zero) and R² the share of variance the straight line explains
+  — low R² means the trend line is a poor summary of that series. The fit
+  recomputes automatically as new quarters arrive.
   An amber vertical line marks a STRUCTURAL BREAK — a quarter where revenue
   stepped to a sustained new level (spin-off, divestiture, deconsolidation or
   transforming acquisition), detected from the data itself, not a hand-kept
@@ -319,12 +320,16 @@ function linFit(dates, ys) {
   if (!den) return null;
   const m = (n * sxy - sx * sy) / den, c = (sy - m * sx) / n;
   const ybar = sy / n;
-  let ssr = 0, sst = 0;
+  let ssr = 0, sst = 0, sabs = 0;
   for (const [x0, y] of pts) {
     const f = c + m * (x0 - t0);
-    ssr += (y - f) ** 2; sst += (y - ybar) ** 2;
+    ssr += (y - f) ** 2; sst += (y - ybar) ** 2; sabs += Math.abs(y);
   }
-  return { m, c, r2: sst > 0 ? 1 - ssr / sst : 1,
+  // v1.16.0 unitless %metric: slope ÷ LATEST value (null when the latest
+  // value is near/below zero, where a percentage would be noise)
+  const latest = pts[pts.length - 1][1], amean = sabs / n;
+  const pg = (latest > 0 && amean > 0 && latest >= 0.25 * amean) ? m / latest : null;
+  return { m, c, pg, r2: sst > 0 ? 1 - ssr / sst : 1,
            at: d => c + m * (Date.parse(d) / YR - t0) };
 }
 
@@ -333,17 +338,21 @@ function linFit(dates, ys) {
 // Compare mode -> one compact row per ticker (slope + R²).
 const fSigned = (v, unit) => (v < 0 ? "−" : "+") + fmt(Math.abs(v), unit);
 const fLevel = (v, unit) => v < 0 ? "−" + fmt(-v, unit) : fmt(v, unit);
+const fPgc = pg => pg === null || pg === undefined ? "–"
+  : (pg >= 0 ? "+" : "−") + (100 * Math.abs(pg)).toFixed(1) + "%/yr";
 function fitRowsHTML(rows, unit) {
   const tr = [];
   if (rows.length === 1) {
     const lf = rows[0][1];
     if (lf) tr.push(`<tr><td>lin</td><td>c ${fLevel(lf.c, unit)}</td>` +
-      `<td>m ${fSigned(lf.m, unit)}/yr</td><td>R² ${lf.r2.toFixed(2)}</td></tr>`);
-    else tr.push(`<tr><td>fit</td><td colspan="3">n/a</td></tr>`);
+      `<td>m ${fSigned(lf.m, unit)}/yr</td>` +
+      `<td title="unitless: slope ÷ latest value">% ${fPgc(lf.pg)}</td>` +
+      `<td>R² ${lf.r2.toFixed(2)}</td></tr>`);
+    else tr.push(`<tr><td>fit</td><td colspan="4">n/a</td></tr>`);
   } else {
     for (const [name, lf] of rows)
       tr.push(`<tr><td>${name}</td><td colspan="2">` +
-        (lf ? `m ${fSigned(lf.m, unit)}/yr · R² ${lf.r2.toFixed(2)}` : "n/a") +
+        (lf ? `m ${fSigned(lf.m, unit)}/yr · % ${fPgc(lf.pg)} · R² ${lf.r2.toFixed(2)}` : "n/a") +
         `</td></tr>`);
   }
   return tr;
@@ -612,8 +621,8 @@ fetch("data/history/manifest.json").then(r => r.json()).then(m => {
 }).catch(e => { $("status").textContent =
   "Failed to load manifest (" + e.message + "). The first daily run after deploy populates it."; });
 </script>
-<script src="chat.js?v=v1.15.0" defer></script>
-<script src="menu.js?v=v1.15.0" defer></script>
-<script src="stocklab.js?v=v1.15.0" defer></script>
+<script src="chat.js?v=v1.16.0" defer></script>
+<script src="menu.js?v=v1.16.0" defer></script>
+<script src="stocklab.js?v=v1.16.0" defer></script>
 </body>
 </html>

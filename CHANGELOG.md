@@ -21,6 +21,30 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.16.0 — 2026-08-17
+
+- **%metric — a unitless trend measure for every linear fit** (user request:
+  "divide the slope by the TTM value"). For each of the 9 fitted series and
+  3 windows, the database now stores `pg` = slope ÷ the series' LATEST value
+  (e.g. %EPS = EPS slope $/yr ÷ current TTM EPS), expressed per year. Because
+  it is unitless, companies of any size compare directly. Null when the
+  latest value is ≤ 0 or < 25% of the series' typical magnitude (a percentage
+  of ~nothing is noise). `trends_<w>.json` fields are now
+  **[lg, lr, lm, pg, n]**; both UIs read the file's own `fields` list, so old
+  and new data files load interchangeably.
+- **Naming convention: `%<series>`** — %EPS, %Rev/sh, %FCF/sh, %Book/sh,
+  %REV, %NI, %FCF, %GM, %OM. Used as column headers and understood by the
+  screener's free-text boxes ("%EPS > 10"); plain "EPS growth > 15%" now also
+  resolves to %EPS. The older slope-÷-mean rate stays in the database as
+  `lg` ("EPS growth vs mean level") for anyone who wants it.
+- **Rankings page** shows %metric in place of the old Growth %/yr column
+  (header adapts per metric: "%EPS /yr", "%Rev/sh /yr", …), sortable like
+  every other column, with the full fit in the tooltip.
+- **Screener** trend columns are now %EPS / %Rev/sh / %FCF/sh; chart fit
+  boxes gained a "% +x.x%/yr" cell computed over the visible range.
+- **🎤 voice dictation removed entirely** (user request). The mic button and
+  all SpeechRecognition code are gone — the site never touches a microphone.
+
 ## v1.15.0 — 2026-08-17
 
 - **Page navigation** in the fixed top bar: ◀ back, ▶ forward and "⇥ latest"

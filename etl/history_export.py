@@ -179,19 +179,24 @@ TREND_METRICS = {"eps": "eps_ttm", "rps": "revenue_ps", "fps": "fcf_ps",
                  "rev": "revenue_ttm", "ni": "net_income_ttm", "fcf": "fcf_ttm",
                  "gm": "gross_margin", "om": "op_margin", "bps": "book_ps"}
 TREND_WINDOWS = (20, 40, 0)          # 5y, 10y, all history (quarters)
-# per metric: [growth %/yr, R2, slope per year, quarters used]
-TREND_FIELDS = ["lg", "lr", "lm", "n"]
+# per metric: [growth %/yr vs mean, R2, slope per year, %metric, quarters]
+# %metric (pg, v1.16.0) is the UNITLESS trend measure: slope divided by the
+# LATEST value of the series (e.g. EPS slope $/yr ÷ current TTM EPS),
+# expressed as a fraction per year. Named %EPS, %Rev/sh, ... in the UI.
+TREND_FIELDS = ["lg", "lr", "lm", "pg", "n"]
 
 
 def _lin_trend(dates, ys):
     """Least-squares line y = c + m*t (t in years) over one series.
 
-    Returns (growth_per_year, r2, slope_per_year, n) or None when there are
-    fewer than 6 usable points. growth_per_year = m / mean(y) — the slope
-    expressed as a fraction of the average level, which is exactly the slope
-    divided by the fitted value at the window's midpoint (an OLS line passes
-    through the centroid). It is null when the average level is <= 0, where a
-    percentage growth rate has no meaning (e.g. persistently negative EPS).
+    Returns (growth_per_year, r2, slope_per_year, pct_of_latest, n) or None
+    when there are fewer than 6 usable points. growth_per_year = m / mean(y)
+    — the slope as a fraction of the average level (an OLS line passes
+    through the centroid). pct_of_latest = m / latest(y) — the v1.16.0
+    unitless "%metric": how fast the series grows per year relative to where
+    it stands TODAY. Each is null when its denominator is <= 0 or too close
+    to zero relative to the series' typical magnitude, where a percentage
+    has no meaning (e.g. negative or near-zero EPS).
     """
     import numpy as np
     t, y = [], []
@@ -215,7 +220,9 @@ def _lin_trend(dates, ys):
     # like -2600%/yr, so report no percentage — the slope and R² still stand.
     amean = float(np.abs(y).mean())
     g = m / ybar if (ybar > 0 and amean > 0 and ybar >= 0.25 * amean) else None
-    return (g, r2, float(m), len(y))
+    latest = float(y[-1])
+    pg = m / latest if (latest > 0 and amean > 0 and latest >= 0.25 * amean) else None
+    return (g, r2, float(m), pg, len(y))
 
 
 def detect_breaks(quarters, rev):
@@ -287,9 +294,10 @@ def build_trends(wide):
                 lin = _lin_trend(gw.fiscal_date_ending, gw[col])
                 if lin is None:
                     continue
-                lg, lr, lm, n = lin
+                lg, lr, lm, pg, n = lin
                 rec[key] = [_sig(lg, 4) if lg is not None else None,
-                            _sig(lr, 3), _sig(lm, 4), n]
+                            _sig(lr, 3), _sig(lm, 4),
+                            _sig(pg, 4) if pg is not None else None, n]
             if rec:
                 out[str(w)][t] = rec
     return out

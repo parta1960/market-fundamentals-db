@@ -68,10 +68,9 @@
     border-radius:8px; padding:7px 11px; font-size:14px; cursor:pointer; }
   .slBarBtn:hover { border-color:#6e7681; }
   #slBarSend { background:#1f6feb; border-color:#1f6feb; color:#fff; font-weight:700; }
-  #slBarMic.on { color:#f85149; border-color:#f85149; }
   #slBarPill { display:none; color:#9aa4b2; }
   #slBar.min #slBarIn, #slBar.min #aiProv, #slBar.min #aiModel,
-  #slBar.min #slBarMic, #slBar.min #slBarSend, #slBar.min #slBarAi { display:none; }
+  #slBar.min #slBarSend, #slBar.min #slBarAi { display:none; }
   #slBar.min #slBarPill { display:inline-block; }
   @media (max-width: 820px) { #slBar { gap:6px; padding:8px 8px; } }
   #aiPanel { position:fixed; right:0; top:52px; bottom:0; width:min(420px,100vw);
@@ -137,7 +136,6 @@
     <input id="slBarIn" placeholder="Ask StockLab AI — about any company's 20-year data, or tell it what to chart…">
     <select id="aiProv" title="AI provider"></select>
     <select id="aiModel" title="model — list auto-updates from the provider"></select>
-    <button class="slBarBtn" id="slBarMic" title="dictate your question">🎤</button>
     <button class="slBarBtn" id="slBarSend" title="send to the AI">↑</button>
     <button class="slBarBtn" id="slBarPill"><span class="halEye"></span> Ask StockLab AI</button>
     <button class="slBarBtn" id="slBarMin" title="minimize / expand the chat box">&gt;&lt;</button>`;
@@ -207,26 +205,8 @@
   }
   el("slBarMin").onclick = () => setMin(!bar.classList.contains("min"));
   setMin(localStorage.getItem(LS_MIN) === "1");
-  // 🎤 dictation via the browser's speech recognition (where supported)
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { el("slBarMic").style.display = "none"; }
-  else {
-    let rec = null;
-    el("slBarMic").onclick = () => {
-      if (rec) { rec.stop(); return; }
-      rec = new SR(); rec.interimResults = true; rec.continuous = false;
-      const base = barIn.value;
-      rec.onresult = ev => {
-        let t = "";
-        for (const r of ev.results) t += r[0].transcript;
-        barIn.value = (base ? base + " " : "") + t;
-      };
-      rec.onend = () => { rec = null; el("slBarMic").classList.remove("on"); };
-      rec.onerror = rec.onend;
-      el("slBarMic").classList.add("on");
-      rec.start();
-    };
-  }
+  // v1.16.0: the 🎤 dictation feature was removed at the user's request —
+  // the site never listens to the microphone.
   // narrow screens (v1.8.1): the provider/model pickers relocate into the
   // panel head so the send / minimize buttons always stay reachable on phones
   const mqNarrow = matchMedia("(max-width: 820px)");
@@ -236,8 +216,8 @@
       const head = el("aiHead"), key = el("aiKeyBtn");
       head.insertBefore(prov, key); head.insertBefore(model, key);
     } else {
-      bar.insertBefore(prov, el("slBarMic"));
-      bar.insertBefore(model, el("slBarMic"));
+      bar.insertBefore(prov, el("slBarSend"));
+      bar.insertBefore(model, el("slBarSend"));
     }
   }
   placePickers();
