@@ -21,6 +21,43 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.13.0 — 2026-08-17
+
+- **Exponential fits removed everywhere.** `_exp_trend()` is gone from
+  `etl/history_export.py`; `expFit()` and its dashed dataset are gone from
+  `docs/charts.html`; the `_eg` / `_er` / `_eb` fields, the three CAGR columns
+  and every "exponential"/"CAGR" synonym are gone from `docs/index.html`. Each
+  chart now carries one fit — the dotted linear one — and its corner table has
+  one row (`c`, `m`/yr, R²) instead of two. Rationale for keeping the linear
+  one: on these series it was usually the better-behaved of the two (the log-
+  space R² of an exponential fit is not comparable with a plain-space R², and
+  the positive-values-only rule silently dropped loss-making quarters).
+- **Linear slope and R² are now first-class database fields.** `trends_<w>.json`
+  stores four numbers per ticker per metric — `[growth %/yr, R², slope per year,
+  n quarters]` — for 9 series (EPS, revenue/share, FCF/share, revenue, net
+  income, FCF, gross margin, operating margin, book/share) across 3 windows
+  (20q, 40q, all). Six of them are now VISIBLE screener columns (EPS,
+  Rev/sh, FCF/sh × slope $/yr and fit R²), sortable, with the full fit in each
+  cell's tooltip; all 36 remain screenable by name through the free-text boxes
+  ("EPS fit R² ≥ 0.9", "revenue per share slope ≥ 1").
+- **FIX — silent loss of a ticker's entire price history (found in AAPL).**
+  On the 2026-08-17 run Alpha Vantage answered `200 OK` with an empty body
+  `{}` for AAPL. `av_client._is_limited()` only recognises a limit message when
+  it is the payload's *sole* key, so an empty body looked like success:
+  `flatten_prices()` returned zero rows, AAPL was recorded in `done`, was
+  therefore NOT carried forward, and the parts rewrite deleted its 20 years of
+  prices. Consequences were silent and wide — no `close` series, no `splits`,
+  and because `_factor_after()` then returns 1.0, every per-share series shipped
+  on a MIXED basis (AAPL EPS read 13.23 → 3.35 across the 2020 4:1 split) and
+  its EPS trend flipped from +13.5%/yr R²=0.93 to −5.7%/yr R²=0.22. Three
+  independent guards added: `av_client.fetch(require=...)` rejects a payload
+  that lacks the expected data key (retries, then raises); `_pull_prices()`
+  treats zero rows as a failure, never a success; and `refresh_prices()` now
+  compares each ticker's fresh row count with the previous parts and keeps the
+  old history whenever a "refresh" comes back more than 10% shorter. A tripwire
+  in `history_export.build()` names any ticker that reaches the exporter with no
+  price history, so this class of fault can no longer ship unannounced.
+
 ## v1.12.0 — 2026-08-17
 
 - **Structural-break (spin-off) detection.** `etl/history_export.py`

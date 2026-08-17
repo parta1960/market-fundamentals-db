@@ -27,8 +27,15 @@ def _is_limited(payload: dict) -> str | None:
 
 
 def fetch(function: str, symbol: str, min_interval: float, extra: dict | None = None,
-          max_retries: int = 4) -> dict:
-    """One throttled call. min_interval seconds are enforced between calls globally."""
+          max_retries: int = 4, require: str | None = None) -> dict:
+    """One throttled call. min_interval seconds are enforced between calls globally.
+
+    `require` names a key the payload MUST contain (e.g. "Time Series (Daily)").
+    AV occasionally answers 200 OK with an empty or truncated body; without this
+    check the caller sees a successful-looking empty result and silently drops
+    the ticker's data. Retries first, then raises AVError so the caller's
+    failure path (retry pass / carry-forward) is what handles it.
+    """
     params = {"function": function, "symbol": symbol, "apikey": API_KEY}
     params.update(extra or {})
     last = getattr(fetch, "_last_call", 0.0)
@@ -42,6 +49,12 @@ def fetch(function: str, symbol: str, min_interval: float, extra: dict | None = 
         payload = r.json()
         msg = _is_limited(payload)
         if msg is None:
+            if require and not payload.get(require):
+                if attempt < max_retries - 1:
+                    time.sleep(5 * (attempt + 1))
+                    continue
+                raise AVError(f"{function}/{symbol}: payload missing '{require}' "
+                              f"(keys={sorted(payload)[:5]})")
             return payload
         if "per minute" in msg or "call frequency" in msg or "higher API call volume" in msg:
             time.sleep(20 * (attempt + 1))  # throttled: back off and retry

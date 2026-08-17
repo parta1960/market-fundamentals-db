@@ -179,8 +179,8 @@ TREND_METRICS = {"eps": "eps_ttm", "rps": "revenue_ps", "fps": "fcf_ps",
                  "rev": "revenue_ttm", "ni": "net_income_ttm", "fcf": "fcf_ttm",
                  "gm": "gross_margin", "om": "op_margin", "bps": "book_ps"}
 TREND_WINDOWS = (20, 40, 0)          # 5y, 10y, all history (quarters)
-# per metric: [lin %/yr, lin R², lin slope/yr, exp %/yr, exp R², exp b, n]
-TREND_FIELDS = ["lg", "lr", "lm", "eg", "er", "eb", "n"]
+# per metric: [growth %/yr, R2, slope per year, quarters used]
+TREND_FIELDS = ["lg", "lr", "lm", "n"]
 
 
 def _lin_trend(dates, ys):
@@ -267,37 +267,13 @@ def detect_breaks(quarters, rev):
     return out
 
 
-def _exp_trend(dates, ys):
-    """Least-squares y = a*e^(b*t) via ln(y) (positive values only).
-
-    Returns (growth_per_year = e^b - 1, r2_log_space, b, n) or None.
-    """
-    import numpy as np
-    t, y = [], []
-    nn = 0
-    for d, v in zip(dates, ys):
-        if v is None or (isinstance(v, float) and math.isnan(v)):
-            continue
-        nn += 1
-        if v > 0:
-            t.append(pd.Timestamp(d).value / 3.15576e16)
-            y.append(math.log(float(v)))
-    if len(y) < 6 or len(y) < 0.5 * nn:
-        return None
-    t = np.asarray(t); y = np.asarray(y)
-    t = t - t[0]
-    b, lna = np.polyfit(t, y, 1)
-    pred = b * t + lna
-    sst = float(((y - y.mean()) ** 2).sum())
-    r2 = 1.0 - float(((y - pred) ** 2).sum()) / sst if sst > 0 else 1.0
-    return (math.exp(b) - 1.0, r2, float(b), len(y))
-
-
 def build_trends(wide):
-    """Per-ticker LINEAR and EXPONENTIAL fit parameters for the screener.
+    """Per-ticker LINEAR fit parameters for the screener.
 
-    v1.11.0: both fit families, with R², for every metric in TREND_METRICS
-    and every window in TREND_WINDOWS, so any of them can be screened on.
+    v1.13.0: linear fits only (exponential fits were removed). For every
+    metric in TREND_METRICS and every window in TREND_WINDOWS this stores
+    [growth %/yr, R2, slope per year, quarters used] so any of them can be
+    screened, sorted or charted.
     """
     out = {str(w): {} for w in TREND_WINDOWS}
     for t, g in wide.groupby("ticker"):
@@ -309,19 +285,11 @@ def build_trends(wide):
                 if col not in gw.columns:
                     continue
                 lin = _lin_trend(gw.fiscal_date_ending, gw[col])
-                exp = _exp_trend(gw.fiscal_date_ending, gw[col])
-                if lin is None and exp is None:
+                if lin is None:
                     continue
-                lg, lr, lm, n = lin if lin else (None, None, None, 0)
-                eg, er, eb, en = exp if exp else (None, None, None, 0)
-                rec[key] = [
-                    _sig(lg, 4) if lg is not None else None,
-                    _sig(lr, 3) if lr is not None else None,
-                    _sig(lm, 4) if lm is not None else None,
-                    _sig(eg, 4) if eg is not None else None,
-                    _sig(er, 3) if er is not None else None,
-                    _sig(eb, 4) if eb is not None else None,
-                    max(n, en)]
+                lg, lr, lm, n = lin
+                rec[key] = [_sig(lg, 4) if lg is not None else None,
+                            _sig(lr, 3), _sig(lm, 4), n]
             if rec:
                 out[str(w)][t] = rec
     return out
@@ -336,6 +304,18 @@ def build():
     prices = _read("prices_daily")
     comp = _read("companies")
     fund = _read("fundamentals")
+
+    # Tripwire: a ticker present in the fundamentals but absent from
+    # prices_daily has no split events, so _factor_after() returns 1.0 and its
+    # per-share series ship on a MIXED basis (pre-split dollars spliced to
+    # post-split dollars) with no visible error. That is exactly how AAPL's EPS
+    # showed 13.23 -> 3.35 across the 2020 4:1 split on 2026-08-17. Name them
+    # loudly so the run is auditable.
+    if not prices.empty:
+        no_px = sorted(set(wide.ticker.unique()) - set(prices.ticker.unique()))
+        if no_px:
+            print(f"WARNING history_export: {len(no_px)} ticker(s) have NO price "
+                  f"history — per-share series are not split-normalised: {no_px}")
 
     # extra balance-sheet items -> wide columns
     if not fund.empty:

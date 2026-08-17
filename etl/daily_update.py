@@ -34,6 +34,27 @@ from config import AV_MIN_INTERVAL_SECONDS
 PARQUET = "data/parquet"
 
 
+def _pull_prices(t):
+    """Fetch one ticker's full adjusted daily series. Raises unless it yields rows.
+
+    Guard added after 2026-08-17: AV answered 200 OK with an empty body `{}` for
+    AAPL. The old code treated that as success, so AAPL landed in `done` with
+    zero rows, was therefore NOT carried forward, and its entire price history
+    was deleted by the parts rewrite below — which in turn removed its split
+    events and silently un-split-adjusted every per-share series. An empty
+    result is a failure, never a success.
+    """
+    px = av_client.fetch("TIME_SERIES_DAILY_ADJUSTED", t,
+                         AV_MIN_INTERVAL_SECONDS,
+                         extra={"outputsize": "full"},
+                         require="Time Series (Daily)")
+    rows = fb.flatten_prices(px, t)
+    if not rows:
+        raise ValueError(f"{t}: zero price rows returned")
+    av_client.save_raw(px, f"{fb.RAW_AV}/{t}_prices.json.gz")
+    return rows
+
+
 def refresh_prices(tickers, budget_end):
     buf = {t: [] for t in fb.TABLES}
     done, failed = [], {}
@@ -41,11 +62,8 @@ def refresh_prices(tickers, budget_end):
         if time.time() > budget_end:
             break
         try:
-            px = av_client.fetch("TIME_SERIES_DAILY_ADJUSTED", t,
-                                 AV_MIN_INTERVAL_SECONDS,
-                                 extra={"outputsize": "full"})
-            av_client.save_raw(px, f"{fb.RAW_AV}/{t}_prices.json.gz")
-            buf["prices_daily"] += fb.flatten_prices(px, t)
+            rows = _pull_prices(t)
+            buf["prices_daily"] += rows
             done.append(t)
         except Exception as e:  # noqa: BLE001
             failed[t] = f"{type(e).__name__}: {e}"
@@ -55,11 +73,8 @@ def refresh_prices(tickers, budget_end):
             break
         try:
             time.sleep(2)
-            px = av_client.fetch("TIME_SERIES_DAILY_ADJUSTED", t,
-                                 AV_MIN_INTERVAL_SECONDS,
-                                 extra={"outputsize": "full"})
-            av_client.save_raw(px, f"{fb.RAW_AV}/{t}_prices.json.gz")
-            buf["prices_daily"] += fb.flatten_prices(px, t)
+            rows = _pull_prices(t)
+            buf["prices_daily"] += rows
             done.append(t)
             del failed[t]
         except Exception as e:  # noqa: BLE001
@@ -72,10 +87,29 @@ def refresh_prices(tickers, budget_end):
         print(f"only {len(done)}/{len(tickers)} refreshed — keeping old parts")
         return done, failed
     old_files = glob.glob(f"{PARQUET}/prices_daily/part_*.parquet")
+    prev = pd.DataFrame()
+    if old_files:
+        prev = pd.concat([pd.read_parquet(p) for p in old_files], ignore_index=True)
+    rows = buf["prices_daily"]
+    # Truncation guard: a full re-pull can only grow a series, so a ticker whose
+    # fresh history is materially shorter than yesterday's did not really
+    # refresh. These parts ARE the price archive, so overwriting on a short
+    # body loses history permanently (and, with it, the split events that every
+    # per-share series is normalised by). Demote such tickers to carry-forward.
+    if not prev.empty and rows:
+        newc = pd.Series([r["ticker"] for r in rows]).value_counts()
+        oldc = prev.ticker.value_counts()
+        shrunk = {t for t in done
+                  if t in oldc.index and newc.get(t, 0) < 0.9 * oldc[t]}
+        if shrunk:
+            print(f"truncated refresh — keeping old prices for {sorted(shrunk)}")
+            done = [t for t in done if t not in shrunk]
+            rows = [r for r in rows if r["ticker"] not in shrunk]
+            for t in shrunk:
+                failed[t] = "truncated refresh (previous history kept)"
     missing = [t for t in tickers if t not in set(done)]
     carry = pd.DataFrame()
-    if missing and old_files:
-        prev = pd.concat([pd.read_parquet(p) for p in old_files], ignore_index=True)
+    if missing and not prev.empty:
         carry = prev[prev.ticker.isin(missing)]
         print(f"carrying forward yesterday's prices for {sorted(missing)}")
     for p in old_files:
@@ -84,7 +118,6 @@ def refresh_prices(tickers, budget_end):
         os.makedirs(f"{PARQUET}/prices_daily", exist_ok=True)
         carry.to_parquet(f"{PARQUET}/prices_daily/part_CARRYOVER.parquet",
                          compression="zstd", index=False)
-    rows = buf["prices_daily"]
     for i in range(0, len(done), 40):
         chunk = set(done[i:i + 40])
         sub = [r for r in rows if r["ticker"] in chunk]

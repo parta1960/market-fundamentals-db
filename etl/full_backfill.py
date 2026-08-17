@@ -141,7 +141,8 @@ def process_ticker(t, cik, buf):
     buf["companies"].append(company)
 
     px = av_client.fetch("TIME_SERIES_DAILY_ADJUSTED", t, AV_MIN_INTERVAL_SECONDS,
-                         extra={"outputsize": "full"})
+                         extra={"outputsize": "full"},
+                         require="Time Series (Daily)")
     av_client.save_raw(px, f"{RAW_AV}/{t}_prices.json.gz")
     p = flatten_prices(px, t)
     buf["prices_daily"] += p

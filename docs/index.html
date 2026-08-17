@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — S&P 500 + Nasdaq-100 fundamentals</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.12.0"></script>
+<script src="version.js?v=v1.13.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -107,6 +107,12 @@
 <div id="status">Loading data…</div>
 
 <footer>
+  Trend fields come from a least-squares LINEAR fit y = c + m·t (t in years)
+  over the selected window: slope m is the change per year in the series' own
+  units, R² is the share of variance the straight line explains, and "trend"
+  restates m as a percentage of the series' mean level. All three, for nine
+  series across three windows, are stored per ticker and can be screened by
+  name (e.g. "EPS fit R² ≥ 0.9", "revenue per share slope ≥ 1").
   Caveats: dual-class tickers (BRK-B, GOOGL, FOX…) can have distorted per-share metrics;
   very large growth rates are usually M&amp;A, not organic; a small share of underlying
   fundamentals are reported in non-USD. Educational screener, not investment advice —
@@ -124,20 +130,20 @@ const COLS = [
   // v1.10.0 trend columns — linear-fit slope / average level, per year
   ["eps_gr","EPS trend","pctpol"], ["rps_gr","Rev/sh trend","pctpol"],
   ["fps_gr","FCF/sh trend","pctpol"],
-  // v1.11.0 exponential-fit growth (CAGR) for the same three series
-  ["eps_eg","EPS CAGR","pctpol"], ["rps_eg","Rev/sh CAGR","pctpol"],
-  ["fps_eg","FCF/sh CAGR","pctpol"],
+  // v1.13.0 linear-fit slope (units per year) and R² for the same three series
+  ["eps_lm","EPS slope $/yr","num"], ["eps_lr","EPS fit R²","num"],
+  ["rps_lm","Rev/sh slope $/yr","num"], ["rps_lr","Rev/sh fit R²","num"],
+  ["fps_lm","FCF/sh slope $/yr","num"], ["fps_lr","FCF/sh fit R²","num"],
 ];
-/* ---- fit parameters (v1.11.0) -------------------------------------------
-   trends_<window>.json holds, per ticker and per metric, seven numbers:
-   [lin %/yr, lin R², lin slope/yr, exp %/yr, exp R², exp b, n quarters].
-   They are flattened onto each row as <metric>_<field>, e.g. eps_lg (linear
-   EPS growth), eps_eg (exponential), eps_lr / eps_er (R²), so ANY of them can
-   be screened, sorted or asked about. */
+/* ---- fit parameters (v1.11.0, linear-only since v1.13.0) ----------------
+   trends_<window>.json holds, per ticker and per metric, four numbers:
+   [growth %/yr, R², slope per year, n quarters]. They are flattened onto each
+   row as <metric>_<field>, e.g. eps_lg (growth %/yr), eps_lm (slope $/yr),
+   eps_lr (R²), so ANY of them can be screened, sorted or asked about. */
 const TR_METRIC_LABEL = { eps: "EPS", rps: "Revenue/share", fps: "FCF/share",
   rev: "Revenue", ni: "Net income", fcf: "Free cash flow",
   gm: "Gross margin", om: "Operating margin", bps: "Book value/share" };
-const TR_FIELDS = ["lg","lr","lm","eg","er","eb","n"];
+const TR_FIELDS = ["lg","lr","lm","n"];
 let TRW = {}, trWin = "40";                 // cache: window -> {ticker: {...}}
 function applyTrends() {
   const w = TRW[trWin] || {};
@@ -200,20 +206,14 @@ function buildFieldCatalog() {
   for (const [m, syns] of Object.entries(TREND_SYN)) {
     cat[m + "_lg"] = { label: TR_METRIC_LABEL[m] + " growth (linear fit)", unit: "pct",
       syn: syns.flatMap(s => [s + " growth", s + " trend", s + " growth rate",
-        s + " linear growth", "linear " + s + " growth", s + " slope"]) };
-    cat[m + "_eg"] = { label: TR_METRIC_LABEL[m] + " growth (exponential fit)", unit: "pct",
-      syn: syns.flatMap(s => [s + " cagr", s + " exponential growth", "exponential " + s + " growth",
-        s + " compound growth", s + " compounding"]) };
+        s + " linear growth", "linear " + s + " growth"]) };
     cat[m + "_lr"] = { label: TR_METRIC_LABEL[m] + " linear fit R²", unit: "x",
-      syn: syns.flatMap(s => [s + " r2", s + " r²", s + " linear r2", s + " fit quality",
-        s + " trend consistency", s + " linearity"]) };
-    cat[m + "_er"] = { label: TR_METRIC_LABEL[m] + " exponential fit R²", unit: "x",
-      syn: syns.flatMap(s => [s + " exponential r²", s + " exp r²", s + " cagr r²",
-        "exponential " + s + " r²", s + " exponential fit r²"]) };
+      syn: syns.flatMap(s => [s + " r2", s + " r²", s + " linear r2", s + " fit r²",
+        s + " fit quality", s + " trend consistency", s + " linearity",
+        s + " trend r²", s + " growth r²"]) };
     cat[m + "_lm"] = { label: TR_METRIC_LABEL[m] + " linear slope per year", unit: "usd",
-      syn: syns.map(s => s + " slope per year") };
-    cat[m + "_eb"] = { label: TR_METRIC_LABEL[m] + " exponential b", unit: "x",
-      syn: syns.map(s => s + " exponential b") };
+      syn: syns.flatMap(s => [s + " slope per year", s + " slope", s + " slope/yr",
+        s + " linear slope", s + " trend slope", s + " change per year"]) };
   }
   return cat;
 }
@@ -264,7 +264,7 @@ function parseCriterion(text) {
   }
   if (!best) return null;
   const def = CAT[best];
-  if (!op) op = /margin|growth|cagr|trend|r²|r2/.test(def.label.toLowerCase()) ? ">=" : "<=";
+  if (!op) op = /margin|growth|trend|slope|r²|r2/.test(def.label.toLowerCase()) ? ">=" : "<=";
   if (def.unit === "pct" && (isPct || Math.abs(value) > 1.5)) value = value / 100;
   return { field: best, op, value, src: raw };
 }
@@ -386,10 +386,12 @@ function render() {
       : fmt(v, kind);
     // trend cells carry the underlying fit in a tooltip (slope, R², points)
     let tip = "";
-    if (k.endsWith("_gr") || k.endsWith("_eg")) {
-      const m = k.split("_")[0], lm = x[m + "_lm"], lr = x[m + "_lr"],
-            eg = x[m + "_eg"], er = x[m + "_er"], n = x[m + "_n"];
-      tip = n ? ` title="linear: ${lm >= 0 ? "+" : ""}${lm}/yr, R²=${lr} · exponential: ${eg != null ? (100*eg).toFixed(1) + "%/yr" : "n/a"}, R²=${er} · ${n} quarters"`
+    if (k.endsWith("_gr") || k.endsWith("_lm") || k.endsWith("_lr")) {
+      const m = k.split("_")[0], lg = x[m + "_lg"], lm = x[m + "_lm"],
+            lr = x[m + "_lr"], n = x[m + "_n"];
+      tip = n ? ` title="linear fit y=c+m·t — slope m ${lm >= 0 ? "+" : ""}${lm}/yr`
+              + `, ${lg != null ? (lg >= 0 ? "+" : "") + (100 * lg).toFixed(1) + "%/yr vs mean level" : "%/yr n/a (level too near zero)"}`
+              + `, R²=${lr} over ${n} quarters"`
               : ` title="not enough data for a fit"`;
     }
     return `<td class="${cls}"${tip}>${cell}</td>`; }).join("") + "</tr>").join("");
@@ -455,7 +457,7 @@ Promise.all([
 })
 .catch(e => { $("status").textContent = "Failed to load data/latest_ratios.json (" + e.message + "). The first daily run after this page was deployed populates it."; });
 </script>
-<script src="chat.js?v=v1.12.0" defer></script>
-<script src="menu.js?v=v1.12.0" defer></script>
+<script src="chat.js?v=v1.13.0" defer></script>
+<script src="menu.js?v=v1.13.0" defer></script>
 </body>
 </html>
