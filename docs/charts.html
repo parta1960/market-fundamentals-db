@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — History Charts</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.9.0"></script>
-<script src="vendor/chart.umd.min.js?v=v1.9.0"></script>
+<script src="version.js?v=v1.9.1"></script>
+<script src="vendor/chart.umd.min.js?v=v1.9.1"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -47,8 +47,14 @@
            padding:12px 14px 8px; }
   .panel h3 { margin:0 0 2px; font-size:13px; font-weight:600; }
   .panel .meta { color:var(--ink3); font-size:11.5px; margin-bottom:4px; }
-  .panel .meta .fitp { color:var(--ink2); }
   .panel .cwrap { position:relative; height:240px; }
+  .fitbox { position:absolute; top:0; left:2px; pointer-events:none;
+    background:rgba(13,17,23,.55); border-radius:5px; padding:1px 5px; }
+  .fitbox table { border-collapse:collapse; }
+  .fitbox td { font-size:10px; color:var(--ink2); padding:0 7px 0 0;
+    white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .fitbox td:first-child { color:var(--ink3); }
+  .fitbox td:last-child { padding-right:0; }
   #status { padding:16px 24px; color:var(--ink2); }
   #dtwrap:not(:empty) { overflow:auto; max-height:70vh; margin:8px 24px 20px; }
   table.dt { border-collapse:separate; border-spacing:0; font-size:12.5px; }
@@ -98,10 +104,12 @@
   Valuation ratios pair each quarter's actual close with same-date share counts
   (no look-ahead). Displayed prices, share counts and per-share values are
   split-adjusted to today's basis for continuity (Yahoo-comparable).
-  Dashed lines are exponential fits y=a·e^(b·t): least squares on ln(y) over the
-  VISIBLE range, positive values only (≥6 points required); b is the continuous
-  yearly rate, the % figure is the equivalent compound growth per year, R² is
-  measured in log space. Fits recompute automatically as new quarters arrive.
+  Each chart carries two fits over the VISIBLE range, parameters in the corner
+  table: dashed = exponential y=a·e^(b·t) (least squares on ln(y), positive
+  values only, ≥6 points; b = continuous yearly rate, % = equivalent compound
+  growth per year, R² in log space) and dotted = linear y=c+m·t (all values,
+  R² in plain space). Whichever R² is higher describes the series better.
+  Fits recompute automatically as new quarters arrive.
   Negative-earnings quarters show no P/E. Educational tool, not investment advice.
 </footer>
 
@@ -208,11 +216,64 @@ function expFit(dates, ys) {
            at: d => Math.exp(lna + b * (Date.parse(d) / YR - t0)) };
 }
 const fPct = v => (v >= 0 ? "+" : "") + (100 * v).toFixed(1) + "%";
-function fitLabel(fit, unit) {
-  if (!fit) return "exp fit: n/a (needs ≥6 positive points)";
-  return `exp fit y=a·eᵇᵗ: a=${fmt(fit.a, unit)}, b=${fit.b.toFixed(3)}/yr ` +
-         `(${fPct(fit.cagr)}/yr) · R²=${fit.r2.toFixed(3)}`;
+
+// ---- linear fit (v1.9.1) -------------------------------------------------
+// y = c + m·t (t in years). All non-null points (negatives allowed), ≥6
+// required. R² in plain y-space. Like expFit, recomputed on every draw.
+function linFit(dates, ys) {
+  const YR = 3.15576e10;
+  const pts = [];
+  for (let i = 0; i < ys.length; i++) {
+    const v = ys[i];
+    if (v !== null && v !== undefined)
+      pts.push([Date.parse(dates[i]) / YR, v]);
+  }
+  if (pts.length < 6) return null;
+  const t0 = pts[0][0];
+  let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  const n = pts.length;
+  for (const [x0, y] of pts) {
+    const x = x0 - t0; sx += x; sy += y; sxx += x * x; sxy += x * y;
+  }
+  const den = n * sxx - sx * sx;
+  if (!den) return null;
+  const m = (n * sxy - sx * sy) / den, c = (sy - m * sx) / n;
+  const ybar = sy / n;
+  let ssr = 0, sst = 0;
+  for (const [x0, y] of pts) {
+    const f = c + m * (x0 - t0);
+    ssr += (y - f) ** 2; sst += (y - ybar) ** 2;
+  }
+  return { m, c, r2: sst > 0 ? 1 - ssr / sst : 1,
+           at: d => c + m * (Date.parse(d) / YR - t0) };
 }
+
+// minimalist parameter table rendered INSIDE the chart (top-left corner).
+// One ticker  -> two rows: exp (a, b, %/yr, R²) and lin (c, m/yr, R²).
+// Compare mode -> one compact row per ticker (both fits side by side).
+const fSigned = (v, unit) => (v < 0 ? "−" : "+") + fmt(Math.abs(v), unit);
+const fLevel = (v, unit) => v < 0 ? "−" + fmt(-v, unit) : fmt(v, unit);
+function fitRowsHTML(rows, unit) {
+  const tr = [];
+  if (rows.length === 1) {
+    const [, ef, lf] = rows[0];
+    if (ef) tr.push(`<tr><td>exp</td><td>a ${fmt(ef.a, unit)}</td>` +
+      `<td>b ${ef.b.toFixed(3)} (${fPct(ef.cagr)}/yr)</td><td>R² ${ef.r2.toFixed(2)}</td></tr>`);
+    if (lf) tr.push(`<tr><td>lin</td><td>c ${fLevel(lf.c, unit)}</td>` +
+      `<td>m ${fSigned(lf.m, unit)}/yr</td><td>R² ${lf.r2.toFixed(2)}</td></tr>`);
+    if (!ef && !lf) tr.push(`<tr><td>fit</td><td colspan="3">n/a</td></tr>`);
+  } else {
+    for (const [name, ef, lf] of rows)
+      tr.push(`<tr><td>${name}</td>` +
+        `<td>exp ${ef ? fPct(ef.cagr) + "/yr R²" + ef.r2.toFixed(2) : "n/a"}</td>` +
+        `<td>lin ${lf ? fSigned(lf.m, unit) + "/yr R²" + lf.r2.toFixed(2) : "n/a"}</td></tr>`);
+  }
+  return tr;
+}
+function fitBox(rows, unit) {
+  return `<div class="fitbox"><table>${fitRowsHTML(rows, unit).join("")}</table></div>`;
+}
+const fitPad = rows => 14 + 13 * fitRowsHTML(rows, "x").length;  // clear strip
 
 const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function tickMap(labels) {
@@ -238,7 +299,7 @@ function tickMap(labels) {
   return map;
 }
 
-function mkChart(canvas, labels, datasets, unit) {
+function mkChart(canvas, labels, datasets, unit, padTop) {
   const log = $("log").checked && unit !== "pct" &&
     datasets.every(d => d.data.every(v => v === null || v > 0));
   const tm = tickMap(labels);
@@ -249,7 +310,7 @@ function mkChart(canvas, labels, datasets, unit) {
       return {
       ...d, borderColor: col, backgroundColor: col,
       borderWidth: d.isFit ? 1.5 : 2, pointHoverRadius: d.isFit ? 0 : 5,
-      spanGaps: false, borderDash: d.isFit ? [6, 4] : [],
+      spanGaps: false, borderDash: d.dash || (d.isFit ? [6, 4] : []),
       pointRadius: c => !d.isFit && d.marks && d.marks[c.dataIndex] ? 5 : 0,
       pointStyle: c => d.marks && d.marks[c.dataIndex] ? "rectRot" : "circle",
       pointBackgroundColor: c => d.marks && d.marks[c.dataIndex] ? SPLIT_C : col,
@@ -257,6 +318,8 @@ function mkChart(canvas, labels, datasets, unit) {
       pointBorderWidth: c => d.marks && d.marks[c.dataIndex] ? 1.5 : 0 }; }) },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
+      // reserve a clean strip at the top for the in-chart fit table (v1.9.1)
+      layout: { padding: { top: padTop || 0 } },
       interaction: { mode: "index", intersect: false },
       scales: {
         x: { ticks: { color: INK2, autoSkip: false, maxRotation: 0,
@@ -339,21 +402,23 @@ async function draw() {
       });
       return { label: h.ticker, data, marks };
     });
-    // exponential fit per company (v1.9.0): dashed curve + params under title
-    const fitBits = [];
+    // fits per company (v1.9.1): exp dashed + linear dotted, params in the
+    // in-chart table
+    const fitRows = [];
     const withFits = [];
     ds.forEach((d, i) => {
       d.slot = i;
       withFits.push(d);
-      const fit = expFit(labels, d.data);
-      if (fit) {
-        withFits.push({ label: d.label + " · fit", data: labels.map(fit.at),
-                        isFit: true, slot: i });
-        fitBits.push(`${d.label} ${fPct(fit.cagr)}/yr (b=${fit.b.toFixed(3)}) R²=${fit.r2.toFixed(2)}`);
-      } else fitBits.push(`${d.label} fit n/a`);
+      const ef = expFit(labels, d.data), lf = linFit(labels, d.data);
+      if (ef) withFits.push({ label: d.label + " · fit", data: labels.map(ef.at),
+                              isFit: true, slot: i });
+      if (lf) withFits.push({ label: d.label + " · fit", data: labels.map(lf.at),
+                              isFit: true, dash: [2, 3], slot: i });
+      fitRows.push([d.label, ef, lf]);
     });
-    wrap.querySelector(".meta").innerHTML += ` · <span class="fitp">exp fits: ${fitBits.join(" · ")}</span>`;
-    charts.push(mkChart(wrap.querySelector("canvas"), labels, withFits, mi.unit));
+    wrap.querySelector(".cwrap").insertAdjacentHTML("beforeend", fitBox(fitRows, mi.unit));
+    charts.push(mkChart(wrap.querySelector("canvas"), labels, withFits, mi.unit,
+                        fitPad(fitRows)));
     ds.forEach(d => tableCols.push({ head: d.label, data: d.data, unit: mi.unit }));
   } else {
     labels = sliceN(main.quarters, state.per);
@@ -361,13 +426,15 @@ async function draw() {
       const mi = metricInfo(k);
       const data = sliceN(main.series[k] || main.quarters.map(() => null), state.per);
       const marks = splitMarks(main, labels);
-      const fit = expFit(labels, data);
+      const ef = expFit(labels, data), lf = linFit(labels, data);
       const wrap = document.createElement("div"); wrap.className = "panel";
-      wrap.innerHTML = `<h3>${mi.label}</h3><div class="meta">${main.ticker} · quarterly · <span class="fitp">${fitLabel(fit, mi.unit)}</span></div><div class="cwrap"><canvas></canvas></div>`;
+      wrap.innerHTML = `<h3>${mi.label}</h3><div class="meta">${main.ticker} · quarterly · exp fit dashed, linear fit dotted</div><div class="cwrap"><canvas></canvas>${fitBox([["", ef, lf]], mi.unit)}</div>`;
       $("charts").appendChild(wrap);
       const ds = [{ label: "", data, marks, slot: 0 }];
-      if (fit) ds.push({ label: "· fit", data: labels.map(fit.at), isFit: true, slot: 0 });
-      charts.push(mkChart(wrap.querySelector("canvas"), labels, ds, mi.unit));
+      if (ef) ds.push({ label: "· fit", data: labels.map(ef.at), isFit: true, slot: 0 });
+      if (lf) ds.push({ label: "· fit", data: labels.map(lf.at), isFit: true, dash: [2, 3], slot: 0 });
+      charts.push(mkChart(wrap.querySelector("canvas"), labels, ds, mi.unit,
+                          fitPad([["", ef, lf]])));
       tableCols.push({ head: mi.label, data, unit: mi.unit });
     }
   }
@@ -443,7 +510,7 @@ fetch("data/history/manifest.json").then(r => r.json()).then(m => {
 }).catch(e => { $("status").textContent =
   "Failed to load manifest (" + e.message + "). The first daily run after deploy populates it."; });
 </script>
-<script src="chat.js?v=v1.9.0" defer></script>
-<script src="menu.js?v=v1.9.0" defer></script>
+<script src="chat.js?v=v1.9.1" defer></script>
+<script src="menu.js?v=v1.9.1" defer></script>
 </body>
 </html>

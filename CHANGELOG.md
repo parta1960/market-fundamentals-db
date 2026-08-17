@@ -21,6 +21,23 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.9.1 — 2026-08-17
+
+- **Linear fit added alongside the exponential fit** on every chart: dashed =
+  exponential y=a·e^(b·t), dotted = linear y=c+m·t (least squares, all
+  non-null points, R² in plain y-space, ≥6 points).
+- **Minimalist parameter table drawn inside each chart** (top-left, over a
+  clean strip reserved by chart padding so nothing collides): row "exp" with
+  a, b, equivalent %/yr and R²; row "lin" with c, m/yr and R². Compare mode
+  compacts to one row per ticker (exp %/yr + R², lin slope + R²). The old
+  header text line is gone.
+- Comparing the two R² values tells you at a glance whether a series is
+  compounding (exp wins) or growing by a fixed amount per year (lin wins) —
+  e.g. AAPL revenue TTM: exp R²=0.85 vs lin R²=0.98 → the last 20 years are
+  closer to linear dollar growth than to constant-% compounding.
+- Linear fit verified against an independent numpy fit (AAPL revenue TTM:
+  c=$6.4B, m=+$22.8B/yr, R²=0.98 — exact match).
+
 ## v1.9.0 — 2026-08-16
 
 - **Exponential fit on every chart** (`docs/charts.html`): each series gets a
