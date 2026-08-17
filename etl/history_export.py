@@ -175,6 +175,67 @@ def corrected_shares(shares: pd.DataFrame, prices: pd.DataFrame) -> tuple:
     return obs, ev
 
 
+TREND_METRICS = {"eps": "eps_ttm", "rps": "revenue_ps", "fps": "fcf_ps"}
+TREND_WINDOWS = (20, 40, 0)          # 5y, 10y, all history (quarters)
+
+
+def _lin_trend(dates, ys):
+    """Least-squares line y = c + m*t (t in years) over one series.
+
+    Returns (growth_per_year, r2, slope_per_year, n) or None when there are
+    fewer than 6 usable points. growth_per_year = m / mean(y) — the slope
+    expressed as a fraction of the average level, which is exactly the slope
+    divided by the fitted value at the window's midpoint (an OLS line passes
+    through the centroid). It is null when the average level is <= 0, where a
+    percentage growth rate has no meaning (e.g. persistently negative EPS).
+    """
+    import numpy as np
+    t, y = [], []
+    for d, v in zip(dates, ys):
+        if v is None or (isinstance(v, float) and math.isnan(v)):
+            continue
+        t.append(pd.Timestamp(d).value / 3.15576e16)      # ns -> years
+        y.append(float(v))
+    if len(y) < 6:
+        return None
+    t = np.asarray(t); y = np.asarray(y)
+    t = t - t[0]
+    m, c = np.polyfit(t, y, 1)
+    pred = m * t + c
+    sst = float(((y - y.mean()) ** 2).sum())
+    r2 = 1.0 - float(((y - pred) ** 2).sum()) / sst if sst > 0 else 1.0
+    ybar = float(y.mean())
+    # A percentage rate is only meaningful when the average level is solidly
+    # positive. If the series swings across zero (mean near zero relative to
+    # its typical magnitude, e.g. WBD's EPS) slope/mean explodes to nonsense
+    # like -2600%/yr, so report no percentage — the slope and R² still stand.
+    amean = float(np.abs(y).mean())
+    g = m / ybar if (ybar > 0 and amean > 0 and ybar >= 0.25 * amean) else None
+    return (g, r2, float(m), len(y))
+
+
+def build_trends(wide):
+    """Per-ticker linear-fit trend rates for the screener (v1.10.0)."""
+    out = {str(w): {} for w in TREND_WINDOWS}
+    for t, g in wide.groupby("ticker"):
+        g = g.sort_values("fiscal_date_ending")
+        for w in TREND_WINDOWS:
+            gw = g.tail(w) if w else g
+            rec = {}
+            for key, col in TREND_METRICS.items():
+                if col not in gw.columns:
+                    continue
+                r = _lin_trend(gw.fiscal_date_ending, gw[col])
+                if r is None:
+                    continue
+                gr, r2, slope, n = r
+                rec[key] = [_sig(gr, 4) if gr is not None else None,
+                            _sig(r2, 3), _sig(slope, 4), n]
+            if rec:
+                out[str(w)][t] = rec
+    return out
+
+
 def build():
     pq = f"{PARQUET}/derived_metrics/per_quarter.parquet"
     if not os.path.exists(pq):
@@ -343,6 +404,19 @@ def build():
     }
     with open(f"{OUT_DIR}/manifest.json", "w") as f:
         json.dump(manifest, f, separators=(",", ":"), allow_nan=False)
+
+    # ---- trend rates for the screener (v1.10.0) ------------------------
+    trends = {"as_of": manifest["as_of"],
+              "windows": [str(w) for w in TREND_WINDOWS],
+              "metrics": {k: v for k, v in TREND_METRICS.items()},
+              "w": build_trends(wide)}
+    tblob = json.dumps(trends, separators=(",", ":"), allow_nan=False).encode()
+    tpath = "docs/data/trends.json"
+    os.makedirs("docs/data", exist_ok=True)
+    if not (os.path.exists(tpath) and open(tpath, "rb").read() == tblob):
+        with open(tpath, "wb") as f:
+            f.write(tblob)
+    print(f"history_export: trends.json {len(tblob)/1024:.0f} KB")
     print(f"history_export: {written} written, {unchanged} unchanged, "
           f"{len(tickers_out)} tickers")
 

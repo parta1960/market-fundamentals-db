@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — S&P 500 + Nasdaq-100 fundamentals</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.9.2"></script>
+<script src="version.js?v=v1.10.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -74,6 +74,14 @@
   <label>Min gross margin % <input type="number" id="mingm" placeholder="any"></label>
   <label>Buybacks <select id="bb"><option value="">Any</option>
     <option value="y">Shares shrinking</option><option value="3">Down &gt;3% y/y</option></select></label>
+  <label title="window used for the EPS / Rev-per-share / FCF-per-share trend fits">Trend window
+    <select id="tw"><option value="20">5 years</option>
+      <option value="40" selected>10 years</option>
+      <option value="0">All history</option></select></label>
+  <label title="minimum EPS trend growth from the linear fit">Min EPS trend %/yr
+    <input type="number" id="mineps" placeholder="any"></label>
+  <label title="minimum R² of the EPS trend fit (0–1): how well a straight line describes it">Min trend R²
+    <input type="number" id="minr2" step="0.05" placeholder="any"></label>
   <button id="clear">Clear</button>
   <button class="preset" data-p="cheapfcf">Preset: cheap FCF growers</button>
   <button class="preset" data-p="mb">Preset: margin + buybacks</button>
@@ -97,7 +105,23 @@ const COLS = [
   ["pfcf_ttm","P/FCF",""], ["pb","P/B",""],
   ["gross_margin","GM%","pct"], ["op_margin","OM%","pct"], ["net_margin","NM%","pct"],
   ["rev_yoy","Rev y/y","pctpol"], ["ni_yoy","NI y/y","pctpol"], ["shares_yoy","Shares y/y","pctpol"],
+  // v1.10.0 trend columns — linear-fit slope / average level, per year
+  ["eps_gr","EPS trend","pctpol"], ["rps_gr","Rev/sh trend","pctpol"],
+  ["fps_gr","FCF/sh trend","pctpol"],
 ];
+// trend data: {window: {ticker: {eps|rps|fps: [growth, r2, slope, n]}}}
+let TR = null, trWin = "40";
+function applyTrends() {
+  const w = (TR && TR.w[trWin]) || {};
+  for (const r of rows) {
+    const t = w[r.ticker] || {};
+    for (const [k, key] of [["eps", "eps_gr"], ["rps", "rps_gr"], ["fps", "fps_gr"]]) {
+      const v = t[k];
+      r[key] = v ? v[0] : null;
+      r[key + "_i"] = v || null;          // [growth, r2, slope, n] for tooltips
+    }
+  }
+}
 let rows = [], sortKey = "ticker", sortDir = 1;
 
 const $ = id => document.getElementById(id);
@@ -112,7 +136,8 @@ function render() {
   const q = $("q").value.trim().toUpperCase(), sec = $("sector").value,
         maxpe = parseFloat($("maxpe").value), maxpfcf = parseFloat($("maxpfcf").value),
         minrev = parseFloat($("minrev").value), mingm = parseFloat($("mingm").value),
-        bb = $("bb").value;
+        bb = $("bb").value,
+        mineps = parseFloat($("mineps").value), minr2 = parseFloat($("minr2").value);
   let r = rows.filter(x =>
     (!q || x.ticker.includes(q) || (x.name||"").toUpperCase().includes(q)) &&
     (!sec || x.sector === sec) &&
@@ -120,6 +145,8 @@ function render() {
     (isNaN(maxpfcf) || (x.pfcf_ttm > 0 && x.pfcf_ttm <= maxpfcf)) &&
     (isNaN(minrev) || x.rev_yoy >= minrev/100) &&
     (isNaN(mingm) || x.gross_margin >= mingm/100) &&
+    (isNaN(mineps) || (typeof x.eps_gr === "number" && x.eps_gr >= mineps/100)) &&
+    (isNaN(minr2) || (x.eps_gr_i && x.eps_gr_i[1] >= minr2)) &&
     (!bb || (bb === "y" ? x.shares_yoy < 0 : x.shares_yoy < -0.03)));
   r.sort((a,b) => {
     const va = a[sortKey], vb = b[sortKey];
@@ -136,7 +163,14 @@ function render() {
     const cell = k === "ticker"
       ? `<a style="color:inherit;text-decoration:none" href="charts.html?t=${v}" title="history charts">${v}</a>`
       : fmt(v, kind);
-    return `<td class="${cls}">${cell}</td>`; }).join("") + "</tr>").join("");
+    // trend cells carry the underlying fit in a tooltip (slope, R², points)
+    let tip = "";
+    if (k.endsWith("_gr")) {
+      const i = x[k + "_i"];
+      tip = i ? ` title="linear fit: slope ${i[2] >= 0 ? "+" : ""}${i[2]} per year · R²=${i[1]} · ${i[3]} quarters"`
+              : ` title="not enough data for a fit"`;
+    }
+    return `<td class="${cls}"${tip}>${cell}</td>`; }).join("") + "</tr>").join("");
   $("status").textContent = `${r.length} of ${rows.length} companies`;
   document.querySelectorAll("th").forEach(th => th.onclick = () => {
     const k = th.dataset.k;
@@ -150,9 +184,15 @@ const PRESETS = {
   mb:       () => { $("mingm").value = 40; $("bb").value = "3"; },
 };
 
-fetch("data/latest_ratios.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-.then(d => {
+Promise.all([
+  fetch("data/latest_ratios.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
+  // trend fits (v1.10.0) — optional: the table still works without them
+  fetch("data/trends.json").then(r => r.ok ? r.json() : null).catch(() => null),
+])
+.then(([d, tr]) => {
   rows = d;
+  TR = tr;
+  applyTrends();
   window.__screener = { rows: () => rows };
   $("asof").textContent = d[0]?.date || "?";
   [...new Set(d.map(x => x.sector).filter(Boolean))].sort().forEach(s => {
@@ -163,14 +203,16 @@ fetch("data/latest_ratios.json").then(r => { if (!r.ok) throw new Error(r.status
     [med("ps_ttm").toFixed(1), "median P/S"], [(100*med("gross_margin")).toFixed(0)+"%", "median gross margin"],
     [d.filter(x => x.shares_yoy < -0.03).length, "buying back >3%/yr"],
   ].map(([v,k]) => `<div class="tile"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("");
-  ["q","sector","maxpe","maxpfcf","minrev","mingm","bb"].forEach(id => $(id).oninput = render);
-  $("clear").onclick = () => { ["q","maxpe","maxpfcf","minrev","mingm"].forEach(id => $(id).value = ""); $("sector").value = ""; $("bb").value = ""; render(); };
+  ["q","sector","maxpe","maxpfcf","minrev","mingm","bb","mineps","minr2"]
+    .forEach(id => $(id).oninput = render);
+  $("tw").onchange = () => { trWin = $("tw").value; applyTrends(); render(); };
+  $("clear").onclick = () => { ["q","maxpe","maxpfcf","minrev","mingm","mineps","minr2"].forEach(id => $(id).value = ""); $("sector").value = ""; $("bb").value = ""; render(); };
   document.querySelectorAll(".preset").forEach(b => b.onclick = () => { $("clear").onclick(); PRESETS[b.dataset.p](); render(); });
   render();
 })
 .catch(e => { $("status").textContent = "Failed to load data/latest_ratios.json (" + e.message + "). The first daily run after this page was deployed populates it."; });
 </script>
-<script src="chat.js?v=v1.9.2" defer></script>
-<script src="menu.js?v=v1.9.2" defer></script>
+<script src="chat.js?v=v1.10.0" defer></script>
+<script src="menu.js?v=v1.10.0" defer></script>
 </body>
 </html>

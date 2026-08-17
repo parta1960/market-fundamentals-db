@@ -407,7 +407,8 @@
       const rows = window.__screener.rows().slice(0, 300);
       const cols = ["ticker", "name", "sector", "close", "pe_ttm", "ps_ttm",
         "pfcf_ttm", "pb", "gross_margin", "op_margin", "net_margin",
-        "rev_yoy", "ni_yoy", "shares_yoy"];
+        "rev_yoy", "ni_yoy", "shares_yoy",
+        "eps_gr", "rps_gr", "fps_gr"];   // linear-fit trend rates (v1.10.0)
       const csv = [cols.join(",")].concat(rows.map(r =>
         cols.map(c => r[c] === null || r[c] === undefined ? "" : r[c]).join(",")
       )).join("\n");
