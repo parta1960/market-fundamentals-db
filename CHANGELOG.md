@@ -21,6 +21,16 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.16.3 — 2026-08-17
+
+- **Rankings: one "Rank by" selector with %metric first** (user feedback:
+  "the first filter doesn't allow %EPS"). The metric dropdown and the
+  separate "Order by" control are merged into a single list with two groups —
+  "%metric — unitless, per year" (%EPS, %Rev/sh, %FCF/sh, %Book/sh, %GM,
+  %OM) and "Slope — native units per year" — so %EPS is directly selectable
+  and is now the DEFAULT ranking. Option value encodes metric:field
+  (e.g. eps:pg); header clicks still re-sort any column.
+
 ## v1.16.2 — 2026-08-17
 
 - **%metric made findable** (user feedback: "I don't see %EPS in the

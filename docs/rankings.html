@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — Rankings</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.16.2"></script>
+<script src="version.js?v=v1.16.3"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -55,25 +55,29 @@
   <div class="sub"><span class="sl-ver"></span> ·
     <a href="index.html">← Screener</a> ·
     <a href="charts.html">📈 History charts</a> ·
-    stocks ranked by linear-fit slope, with the fit's R² alongside ·
+    rank every stock by %EPS-style unitless trend or raw slope, R² alongside ·
     data as of <span id="asof">…</span></div>
 </header>
 
 <div class="filters">
-  <label>Rank by (slope of)
-    <select id="metric">
-      <option value="eps" selected>EPS (TTM), $/yr</option>
-      <option value="rps">Revenue / share, $/yr</option>
-      <option value="fps">FCF / share, $/yr</option>
-      <option value="bps">Book value / share, $/yr</option>
-      <option value="gm">Gross margin, pts/yr</option>
-      <option value="om">Operating margin, pts/yr</option>
-    </select></label>
-  <label title="which fit quantity decides the ranking order">Order by
-    <select id="ord" style="width:150px">
-      <option value="lm" selected>Slope (units/yr)</option>
-      <option value="pg">%metric (/yr, unitless)</option>
-      <option value="lr">Fit R²</option>
+  <label title="what to rank all companies by — %metric is the unitless measure (slope ÷ latest value)">Rank by
+    <select id="metric" style="width:220px">
+      <optgroup label="%metric — unitless, per year">
+        <option value="eps:pg" selected>%EPS</option>
+        <option value="rps:pg">%Rev/sh</option>
+        <option value="fps:pg">%FCF/sh</option>
+        <option value="bps:pg">%Book/sh</option>
+        <option value="gm:pg">%GM</option>
+        <option value="om:pg">%OM</option>
+      </optgroup>
+      <optgroup label="Slope — native units per year">
+        <option value="eps:lm">EPS slope, $/yr</option>
+        <option value="rps:lm">Revenue/share slope, $/yr</option>
+        <option value="fps:lm">FCF/share slope, $/yr</option>
+        <option value="bps:lm">Book/share slope, $/yr</option>
+        <option value="gm:lm">Gross margin slope, pts/yr</option>
+        <option value="om:lm">Op margin slope, pts/yr</option>
+      </optgroup>
     </select></label>
   <label title="window used for the linear fits">Trend window
     <select id="tw"><option value="20">5 years</option>
@@ -89,9 +93,9 @@
 <div id="status">Loading data…</div>
 
 <footer>
-  Rank is by the slope m of the least-squares linear fit y = c + m·t (t in
-  years) over the selected window — the metric's change per year in its own
-  units. R² is how much of the variance that straight line explains:
+  Ranking uses the least-squares linear fit y = c + m·t (t in years) over the
+  selected window: either the raw slope m (the metric's change per year in its
+  own units) or — the default — the %metric form of it. R² is how much of the variance that straight line explains:
   <span class="r2hi">green ≥ 0.8</span> (the slope is a faithful summary),
   <span class="r2mid">amber 0.5–0.8</span> (trend with real wobble),
   <span class="r2lo">grey &lt; 0.5</span> (the slope is NOT a reliable
@@ -113,7 +117,10 @@ const PCT_NAME = { eps: "%EPS", rps: "%Rev/sh", fps: "%FCF/sh",
                    bps: "%Book/sh", gm: "%GM", om: "%OM" };
 const PCT_METRICS = new Set(["gm", "om"]);        // slopes in pts/yr, not $/yr
 let RATIOS = [], TRW = {}, trWin = "40";
-let sortKey = "lm", sortDir = -1;
+let sortKey = "pg", sortDir = -1;
+// #metric value is "<metric>:<rank field>", e.g. "eps:pg" (v1.16.3)
+const selMetric = () => $("metric").value.split(":")[0];
+const selRank = () => $("metric").value.split(":")[1];
 
 async function loadWindow(w) {
   if (TRW[w]) return true;
@@ -127,7 +134,7 @@ async function loadWindow(w) {
 }
 
 function buildRows() {
-  const m = $("metric").value, cur = TRW[trWin] || {};
+  const m = selMetric(), cur = TRW[trWin] || {};
   const w = cur.t || {}, F = cur.fields || [];
   const gi = k => F.indexOf(k);
   const out = [];
@@ -151,7 +158,7 @@ const fPct = v => typeof v === "number"
 const r2cls = r => r >= 0.8 ? "r2hi" : r >= 0.5 ? "r2mid" : "r2lo";
 
 function render() {
-  const m = $("metric").value, minr2 = parseFloat($("minr2").value) || 0;
+  const m = selMetric(), minr2 = parseFloat($("minr2").value) || 0;
   const q = $("q").value.trim().toUpperCase(), sec = $("sector").value;
   let rows = buildRows().filter(r => r.lr >= minr2);
   if (sec) rows = rows.filter(r => r.sector === sec);
@@ -204,8 +211,8 @@ Promise.all([
   $("asof").textContent = d[0]?.date || "?";
   [...new Set(d.map(x => x.sector).filter(Boolean))].sort().forEach(s => {
     const o = document.createElement("option"); o.value = o.textContent = s; $("sector").appendChild(o); });
-  ["metric", "minr2", "sector", "q"].forEach(id => $(id).oninput = render);
-  $("ord").onchange = () => { sortKey = $("ord").value; sortDir = -1; render(); };
+  ["minr2", "sector", "q"].forEach(id => $(id).oninput = render);
+  $("metric").onchange = () => { sortKey = selRank(); sortDir = -1; render(); };
   $("tw").onchange = async () => {
     $("status").textContent = "Loading trend window…";
     const w = $("tw").value;
@@ -216,8 +223,8 @@ Promise.all([
 })
 .catch(e => { $("status").textContent = "Failed to load data (" + e.message + ")."; });
 </script>
-<script src="chat.js?v=v1.16.2" defer></script>
-<script src="menu.js?v=v1.16.2" defer></script>
-<script src="stocklab.js?v=v1.16.2" defer></script>
+<script src="chat.js?v=v1.16.3" defer></script>
+<script src="menu.js?v=v1.16.3" defer></script>
+<script src="stocklab.js?v=v1.16.3" defer></script>
 </body>
 </html>
