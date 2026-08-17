@@ -103,7 +103,7 @@
       return;
     }
     ["mfdb_ai_keys", "mfdb_ai_prov", "mfdb_ai_models",
-     "mfdb_ai_model_choice", "mfdb_ai_pass"].forEach(k => localStorage.removeItem(k));
+     "mfdb_ai_model_choice", "mfdb_ai_pass", "mfdb_ai_hist"].forEach(k => localStorage.removeItem(k));
     b.dataset.arm = "0";
     b.textContent = "✓ Cleared — reload the page";
     setTimeout(() => { b.textContent = "🧹 Reset AI settings on this device"; }, 2500);

@@ -21,6 +21,21 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.9.2 — 2026-08-17
+
+- **The AI conversation is remembered** (`docs/chat.js`): the last 40 turns
+  are saved in the browser and restored automatically — across reloads and
+  when moving between the screener and the charts page. Restored messages are
+  marked with a short note; app-command blocks are stripped when re-displayed.
+  The model also receives the restored history, so follow-up questions like
+  "and compare that to MSFT" work after a reload. Storage is per device;
+  "↺ clear" erases it, as does Menu → Reset AI settings.
+- **Closing the assistant is now obvious**: the unlabeled ✕ became a proper
+  **"✕ Close"** button (highlighted red on hover), **Esc** closes the panel,
+  and the 🤖 bar button is a true toggle that lights up blue while the
+  assistant is open. All three paths go through one function, so the button
+  state can never disagree with the panel.
+
 ## v1.9.1 — 2026-08-17
 
 - **Linear fit added alongside the exponential fit** on every chart: dashed =

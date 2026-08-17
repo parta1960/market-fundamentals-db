@@ -12,7 +12,7 @@
 (() => {
   const LS_KEYS = "mfdb_ai_keys", LS_PROV = "mfdb_ai_prov",
         LS_MODELS = "mfdb_ai_models", LS_CHOSEN = "mfdb_ai_model_choice",
-        LS_PASS = "mfdb_ai_pass";
+        LS_PASS = "mfdb_ai_pass", LS_HIST = "mfdb_ai_hist";
   // v1.6.0: password-gated proxy — provider keys live server-side (Netlify
   // env vars), so ONE StockLab password unlocks all four providers on any
   // device. Per-provider BYOK keys still work as a fallback.
@@ -42,8 +42,14 @@
     pass: localStorage.getItem(LS_PASS) || "",
     savePass() { localStorage.setItem(LS_PASS, this.pass); },
   };
+  // conversation persists on this device across reloads and page changes
+  // (v1.9.2). Last 40 turns; app-command blocks stripped when re-displayed.
   let history = [];   // [{role:"user"|"assistant", text}]
   let busy = false;
+  function saveHist() {
+    try { localStorage.setItem(LS_HIST, JSON.stringify(history.slice(-40))); }
+    catch (e) { /* quota — keep the in-memory conversation anyway */ }
+  }
 
   /* ---------- styles ---------- */
   const css = `
@@ -102,7 +108,12 @@
     padding:0 16px; font-weight:600; cursor:pointer; }
   #aiSend:disabled { opacity:.5; }
   #aiNote { padding:4px 12px 10px; color:#6e7681; font-size:11px; }
-  #aiVer { color:#6e7681; font-size:11px; }`;
+  #aiVer { color:#6e7681; font-size:11px; }
+  #aiClose { margin-left:auto; color:#e6edf3; background:#30363d !important;
+    border-color:#484f58 !important; font-weight:600; }
+  #aiClose:hover { background:#f85149 !important; border-color:#f85149 !important;
+    color:#fff; }
+  #slBarAi.on { background:#1f6feb; border-color:#1f6feb; color:#fff; }`;
   const st = document.createElement("style"); st.textContent = css;
   document.head.appendChild(st);
 
@@ -129,9 +140,9 @@
   panel.innerHTML = `
     <div id="aiHead">
       <button id="aiKeyBtn" title="set the StockLab password or an API key">🔑 key</button>
-      <button id="aiClear" title="clear conversation">↺</button>
+      <button id="aiClear" title="erase the saved conversation">↺ clear</button>
       <span id="aiVer"></span>
-      <button id="aiClose">✕</button>
+      <button id="aiClose" title="close the assistant (Esc)">✕ Close</button>
     </div>
     <div id="aiPassRow">
       <input id="aiPassIn" type="password" placeholder="StockLab password — unlocks ALL providers (easiest)">
@@ -156,9 +167,16 @@
 
   /* ---------- top-bar behaviour (v1.8.0) ---------- */
   const barIn = el("slBarIn");
+  // single place that opens/closes the assistant, so the 🤖 button state,
+  // the Esc key and the ✕ Close button can never disagree (v1.9.2)
+  function setPanel(open) {
+    panel.classList.toggle("open", open);
+    el("slBarAi").classList.toggle("on", open);
+    if (open) { keyHint(); refreshModels(false); }
+  }
   function sendFromBar() {
     const v = barIn.value.trim();
-    panel.classList.add("open"); keyHint(); refreshModels(false);
+    setPanel(true);
     if (!v) return;
     barIn.value = "";
     el("aiIn").value = v;
@@ -167,9 +185,10 @@
   el("slBarSend").onclick = sendFromBar;
   barIn.addEventListener("keydown", e => {
     if (e.key === "Enter") { e.preventDefault(); sendFromBar(); } });
-  el("slBarAi").onclick = () => {
-    panel.classList.toggle("open");
-    if (panel.classList.contains("open")) { keyHint(); refreshModels(false); } };
+  el("slBarAi").onclick = () => setPanel(!panel.classList.contains("open"));
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && panel.classList.contains("open")) setPanel(false);
+  });
   el("slBarPill").onclick = () => setMin(false);
   const LS_MIN = "mfdb_bar_min";
   function setMin(m) {
@@ -305,8 +324,11 @@
   modelIn.onchange = () => { store.chosen[store.prov] = modelIn.value;
     store.saveChosen(); };
 
-  el("aiClose").onclick = () => panel.classList.remove("open");
-  el("aiClear").onclick = () => { history = []; el("aiMsgs").innerHTML = ""; keyHint(); };
+  el("aiClose").onclick = () => setPanel(false);
+  el("aiClear").onclick = () => {
+    history = []; saveHist(); el("aiMsgs").innerHTML = "";
+    msg("act", "Conversation cleared on this device."); keyHint();
+  };
   provSel.onchange = () => { store.prov = provSel.value; store.saveProv();
     keyHint(); refreshModels(false); };
   el("aiKeyBtn").onclick = () => { el("aiKeyRow").classList.toggle("open");
@@ -335,10 +357,23 @@
   };
   // hook for the site menu (v1.7.0): open the panel with both setup rows
   window.__ai = { setup() {
-    panel.classList.add("open");
+    setPanel(true);
     el("aiPassRow").classList.add("open"); el("aiKeyRow").classList.add("open");
-    keyHint(); refreshModels(false);
   } };
+  // restore the saved conversation (v1.9.2) — survives reloads and moving
+  // between the screener and the charts page
+  (function restoreHist() {
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem(LS_HIST) || "[]"); }
+    catch (e) { saved = []; }
+    if (!Array.isArray(saved) || !saved.length) return;
+    history = saved;
+    for (const m of saved) {
+      const txt = String(m.text || "").replace(/```app[\s\S]*?```/g, "").trim();
+      if (txt) msg(m.role === "user" ? "user" : "bot", txt);
+    }
+    msg("act", "↑ earlier conversation restored (↺ clear erases it).");
+  })();
   refreshModels(false);
   el("aiSend").onclick = send;
   el("aiIn").addEventListener("keydown", e => {
@@ -494,7 +529,7 @@ Not investment advice; data may contain gaps.`;
     if (!key && !store.pass) { msg("err", "Tap 🔑 and enter the StockLab " +
       "password (or a " + PROVIDERS[store.prov].name + " API key) once."); return; }
     el("aiIn").value = ""; msg("user", q);
-    history.push({ role: "user", text: q });
+    history.push({ role: "user", text: q }); saveHist();
     busy = true; el("aiSend").disabled = true;
     const wait = msg("act", "thinking…");
     try {
@@ -508,7 +543,7 @@ Not investment advice; data may contain gaps.`;
       wait.remove();
       const clean = applyAppBlock(raw);
       if (clean) msg("bot", clean);
-      history.push({ role: "assistant", text: raw });
+      history.push({ role: "assistant", text: raw }); saveHist();
     } catch (e) {
       wait.remove();
       let hint = "";
