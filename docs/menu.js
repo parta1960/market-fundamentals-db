@@ -136,7 +136,7 @@
 
   $("slShare").onclick = async () => {
     const url = location.href;
-    const b = $("slShare");
+    const b = $("slShare"), orig = b.innerHTML;
     try {
       if (navigator.share) { await navigator.share({ title: document.title, url }); return; }
       await navigator.clipboard.writeText(url);
@@ -144,22 +144,22 @@
     } catch (e) {
       prompt("Copy this link:", url);
     }
-    setTimeout(() => { b.textContent = "🔗 Share this view (copy link)"; }, 2200);
+    setTimeout(() => { b.innerHTML = orig; }, 2200);   // restores icon + label
   };
 
+  const resetOrig = $("slAiReset").innerHTML;
   $("slAiReset").onclick = () => {
     const b = $("slAiReset");
     if (b.dataset.arm !== "1") {
       b.dataset.arm = "1";
       b.textContent = "⚠ Click again to forget password & keys here";
-      setTimeout(() => { b.dataset.arm = "0";
-        b.textContent = "🧹 Reset AI settings on this device"; }, 4000);
+      setTimeout(() => { b.dataset.arm = "0"; b.innerHTML = resetOrig; }, 4000);
       return;
     }
     ["mfdb_ai_keys", "mfdb_ai_prov", "mfdb_ai_models",
      "mfdb_ai_model_choice", "mfdb_ai_pass", "mfdb_ai_hist"].forEach(k => localStorage.removeItem(k));
     b.dataset.arm = "0";
     b.textContent = "✓ Cleared — reload the page";
-    setTimeout(() => { b.textContent = "🧹 Reset AI settings on this device"; }, 2500);
+    setTimeout(() => { b.innerHTML = resetOrig; }, 2500);
   };
 })();
