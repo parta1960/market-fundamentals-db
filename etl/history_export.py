@@ -175,8 +175,12 @@ def corrected_shares(shares: pd.DataFrame, prices: pd.DataFrame) -> tuple:
     return obs, ev
 
 
-TREND_METRICS = {"eps": "eps_ttm", "rps": "revenue_ps", "fps": "fcf_ps"}
+TREND_METRICS = {"eps": "eps_ttm", "rps": "revenue_ps", "fps": "fcf_ps",
+                 "rev": "revenue_ttm", "ni": "net_income_ttm", "fcf": "fcf_ttm",
+                 "gm": "gross_margin", "om": "op_margin", "bps": "book_ps"}
 TREND_WINDOWS = (20, 40, 0)          # 5y, 10y, all history (quarters)
+# per metric: [lin %/yr, lin R², lin slope/yr, exp %/yr, exp R², exp b, n]
+TREND_FIELDS = ["lg", "lr", "lm", "eg", "er", "eb", "n"]
 
 
 def _lin_trend(dates, ys):
@@ -214,8 +218,38 @@ def _lin_trend(dates, ys):
     return (g, r2, float(m), len(y))
 
 
+def _exp_trend(dates, ys):
+    """Least-squares y = a*e^(b*t) via ln(y) (positive values only).
+
+    Returns (growth_per_year = e^b - 1, r2_log_space, b, n) or None.
+    """
+    import numpy as np
+    t, y = [], []
+    nn = 0
+    for d, v in zip(dates, ys):
+        if v is None or (isinstance(v, float) and math.isnan(v)):
+            continue
+        nn += 1
+        if v > 0:
+            t.append(pd.Timestamp(d).value / 3.15576e16)
+            y.append(math.log(float(v)))
+    if len(y) < 6 or len(y) < 0.5 * nn:
+        return None
+    t = np.asarray(t); y = np.asarray(y)
+    t = t - t[0]
+    b, lna = np.polyfit(t, y, 1)
+    pred = b * t + lna
+    sst = float(((y - y.mean()) ** 2).sum())
+    r2 = 1.0 - float(((y - pred) ** 2).sum()) / sst if sst > 0 else 1.0
+    return (math.exp(b) - 1.0, r2, float(b), len(y))
+
+
 def build_trends(wide):
-    """Per-ticker linear-fit trend rates for the screener (v1.10.0)."""
+    """Per-ticker LINEAR and EXPONENTIAL fit parameters for the screener.
+
+    v1.11.0: both fit families, with R², for every metric in TREND_METRICS
+    and every window in TREND_WINDOWS, so any of them can be screened on.
+    """
     out = {str(w): {} for w in TREND_WINDOWS}
     for t, g in wide.groupby("ticker"):
         g = g.sort_values("fiscal_date_ending")
@@ -225,12 +259,20 @@ def build_trends(wide):
             for key, col in TREND_METRICS.items():
                 if col not in gw.columns:
                     continue
-                r = _lin_trend(gw.fiscal_date_ending, gw[col])
-                if r is None:
+                lin = _lin_trend(gw.fiscal_date_ending, gw[col])
+                exp = _exp_trend(gw.fiscal_date_ending, gw[col])
+                if lin is None and exp is None:
                     continue
-                gr, r2, slope, n = r
-                rec[key] = [_sig(gr, 4) if gr is not None else None,
-                            _sig(r2, 3), _sig(slope, 4), n]
+                lg, lr, lm, n = lin if lin else (None, None, None, 0)
+                eg, er, eb, en = exp if exp else (None, None, None, 0)
+                rec[key] = [
+                    _sig(lg, 4) if lg is not None else None,
+                    _sig(lr, 3) if lr is not None else None,
+                    _sig(lm, 4) if lm is not None else None,
+                    _sig(eg, 4) if eg is not None else None,
+                    _sig(er, 3) if er is not None else None,
+                    _sig(eb, 4) if eb is not None else None,
+                    max(n, en)]
             if rec:
                 out[str(w)][t] = rec
     return out
@@ -405,18 +447,26 @@ def build():
     with open(f"{OUT_DIR}/manifest.json", "w") as f:
         json.dump(manifest, f, separators=(",", ":"), allow_nan=False)
 
-    # ---- trend rates for the screener (v1.10.0) ------------------------
-    trends = {"as_of": manifest["as_of"],
-              "windows": [str(w) for w in TREND_WINDOWS],
-              "metrics": {k: v for k, v in TREND_METRICS.items()},
-              "w": build_trends(wide)}
-    tblob = json.dumps(trends, separators=(",", ":"), allow_nan=False).encode()
-    tpath = "docs/data/trends.json"
+    # ---- fit parameters for the screener (v1.10.0, both fits v1.11.0) ---
+    # One file per window so the page only downloads the window in use.
     os.makedirs("docs/data", exist_ok=True)
-    if not (os.path.exists(tpath) and open(tpath, "rb").read() == tblob):
-        with open(tpath, "wb") as f:
-            f.write(tblob)
-    print(f"history_export: trends.json {len(tblob)/1024:.0f} KB")
+    allw = build_trends(wide)
+    head = {"as_of": manifest["as_of"],
+            "windows": [str(w) for w in TREND_WINDOWS],
+            "metrics": TREND_METRICS, "fields": TREND_FIELDS}
+    with open("docs/data/trends_index.json", "w") as f:
+        json.dump(head, f, separators=(",", ":"), allow_nan=False)
+    total = 0
+    for w, data in allw.items():
+        blob = json.dumps({**head, "window": w, "t": data},
+                          separators=(",", ":"), allow_nan=False).encode()
+        p = f"docs/data/trends_{w}.json"
+        if not (os.path.exists(p) and open(p, "rb").read() == blob):
+            with open(p, "wb") as f:
+                f.write(blob)
+        total += len(blob)
+    print(f"history_export: trend files {total/1024:.0f} KB "
+          f"({len(TREND_METRICS)} metrics x {len(TREND_WINDOWS)} windows)")
     print(f"history_export: {written} written, {unchanged} unchanged, "
           f"{len(tickers_out)} tickers")
 

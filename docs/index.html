@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — S&P 500 + Nasdaq-100 fundamentals</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.10.0"></script>
+<script src="version.js?v=v1.11.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -33,6 +33,21 @@
     border-radius:6px; padding:7px 11px; font-size:12.5px; cursor:pointer; }
   .filters button:hover { color:var(--ink); border-color:var(--ink3); }
   .filters button.preset { color:var(--accent); }
+  /* v1.11.0 free-text criteria boxes */
+  .crit { display:flex; gap:10px; flex-wrap:wrap; padding:0 24px 4px; }
+  .cbox { display:flex; flex-direction:column; gap:2px; width:212px; }
+  .cbox input { background:var(--surface); border:1px solid var(--border);
+    color:var(--ink); border-radius:6px; padding:7px 9px; font-size:13px; width:100%; }
+  .cbox input::placeholder { color:var(--ink3); }
+  .cbox input.ok { border-color:#2ea043; }
+  .cbox input.bad { border-color:#f85149; }
+  .cbox .tag { font-size:10.5px; color:var(--ink3); min-height:13px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cbox .tag.ok { color:#3fb950; }
+  .cbox .tag.bad { color:#ffb3ad; }
+  .crithelp { padding:2px 24px 10px; color:var(--ink3); font-size:11.5px; }
+  .crithelp code { background:var(--surface); border:1px solid var(--border);
+    border-radius:4px; padding:1px 5px; color:var(--ink2); }
   .wrap { overflow:auto; max-height:calc(100vh - 230px); padding:0 24px 8px; }
   table { border-collapse:separate; border-spacing:0; width:100%; min-width:1080px; }
   th, td { padding:6px 10px; text-align:right; white-space:nowrap; }
@@ -68,24 +83,25 @@
 <div class="filters">
   <label>Search <input type="text" id="q" placeholder="ticker or name"></label>
   <label>Sector <select id="sector"><option value="">All</option></select></label>
-  <label>Max P/E <input type="number" id="maxpe" placeholder="any"></label>
-  <label>Max P/FCF <input type="number" id="maxpfcf" placeholder="any"></label>
-  <label>Min rev growth % <input type="number" id="minrev" placeholder="any"></label>
-  <label>Min gross margin % <input type="number" id="mingm" placeholder="any"></label>
-  <label>Buybacks <select id="bb"><option value="">Any</option>
-    <option value="y">Shares shrinking</option><option value="3">Down &gt;3% y/y</option></select></label>
   <label title="window used for the EPS / Rev-per-share / FCF-per-share trend fits">Trend window
     <select id="tw"><option value="20">5 years</option>
       <option value="40" selected>10 years</option>
       <option value="0">All history</option></select></label>
-  <label title="minimum EPS trend growth from the linear fit">Min EPS trend %/yr
-    <input type="number" id="mineps" placeholder="any"></label>
-  <label title="minimum R² of the EPS trend fit (0–1): how well a straight line describes it">Min trend R²
-    <input type="number" id="minr2" step="0.05" placeholder="any"></label>
-  <button id="clear">Clear</button>
+  <button id="clear">Clear all</button>
   <button class="preset" data-p="cheapfcf">Preset: cheap FCF growers</button>
   <button class="preset" data-p="mb">Preset: margin + buybacks</button>
+  <button class="preset" data-p="trend">Preset: steady EPS compounders</button>
 </div>
+
+<!-- v1.11.0: free-text screening criteria, interpreted locally and (when the
+     phrasing is unfamiliar) by the AI. -->
+<div class="crit" id="critRow"></div>
+<div class="crithelp">Type any criterion — e.g. <code>P/E &lt; 20</code> ·
+  <code>EPS growth &gt; 15%</code> · <code>price to sales under 4</code> ·
+  <code>FCF per share trend &gt; 10%</code> · <code>shares shrinking</code> ·
+  <code>gross margin at least 40</code>. Wording the built-in parser doesn't
+  recognise is sent to the AI to translate (needs the StockLab password once:
+  ☰ Menu → AI setup).</div>
 
 <div class="wrap"><table id="t"><thead></thead><tbody></tbody></table></div>
 <div id="status">Loading data…</div>
@@ -108,21 +124,152 @@ const COLS = [
   // v1.10.0 trend columns — linear-fit slope / average level, per year
   ["eps_gr","EPS trend","pctpol"], ["rps_gr","Rev/sh trend","pctpol"],
   ["fps_gr","FCF/sh trend","pctpol"],
+  // v1.11.0 exponential-fit growth (CAGR) for the same three series
+  ["eps_eg","EPS CAGR","pctpol"], ["rps_eg","Rev/sh CAGR","pctpol"],
+  ["fps_eg","FCF/sh CAGR","pctpol"],
 ];
-// trend data: {window: {ticker: {eps|rps|fps: [growth, r2, slope, n]}}}
-let TR = null, trWin = "40";
+/* ---- fit parameters (v1.11.0) -------------------------------------------
+   trends_<window>.json holds, per ticker and per metric, seven numbers:
+   [lin %/yr, lin R², lin slope/yr, exp %/yr, exp R², exp b, n quarters].
+   They are flattened onto each row as <metric>_<field>, e.g. eps_lg (linear
+   EPS growth), eps_eg (exponential), eps_lr / eps_er (R²), so ANY of them can
+   be screened, sorted or asked about. */
+const TR_METRIC_LABEL = { eps: "EPS", rps: "Revenue/share", fps: "FCF/share",
+  rev: "Revenue", ni: "Net income", fcf: "Free cash flow",
+  gm: "Gross margin", om: "Operating margin", bps: "Book value/share" };
+const TR_FIELDS = ["lg","lr","lm","eg","er","eb","n"];
+let TRW = {}, trWin = "40";                 // cache: window -> {ticker: {...}}
 function applyTrends() {
-  const w = (TR && TR.w[trWin]) || {};
+  const w = TRW[trWin] || {};
   for (const r of rows) {
     const t = w[r.ticker] || {};
-    for (const [k, key] of [["eps", "eps_gr"], ["rps", "rps_gr"], ["fps", "fps_gr"]]) {
-      const v = t[k];
-      r[key] = v ? v[0] : null;
-      r[key + "_i"] = v || null;          // [growth, r2, slope, n] for tooltips
+    for (const m of Object.keys(TR_METRIC_LABEL)) {
+      const v = t[m];
+      TR_FIELDS.forEach((f, i) => { r[m + "_" + f] = v ? v[i] : null; });
     }
+    r.eps_gr = r.eps_lg; r.rps_gr = r.rps_lg; r.fps_gr = r.fps_lg;
   }
 }
+async function loadWindow(w) {
+  if (TRW[w]) return true;
+  try {
+    const r = await fetch("data/trends_" + w + ".json");
+    if (!r.ok) return false;
+    TRW[w] = (await r.json()).t || {};
+    return true;
+  } catch (e) { return false; }
+}
 let rows = [], sortKey = "ticker", sortDir = 1;
+
+/* ---- screening field catalog + free-text parser (v1.11.0) --------------- */
+// field -> {label, unit: "x"|"pct"|"usd", syn: [phrases]}
+const FIELDS = {
+  pe_ttm:   { label: "P/E (TTM)", unit: "x", syn: ["pe","p/e","price to earnings","price earnings","earnings multiple"] },
+  ps_ttm:   { label: "P/S (TTM)", unit: "x", syn: ["ps","p/s","price to sales","price sales","sales multiple"] },
+  pfcf_ttm: { label: "P/FCF (TTM)", unit: "x", syn: ["pfcf","p/fcf","price to free cash flow","price to fcf","fcf multiple"] },
+  pb:       { label: "P/B", unit: "x", syn: ["pb","p/b","price to book","price book"] },
+  close:    { label: "Price", unit: "usd", syn: ["price","close","share price","stock price"] },
+  gross_margin: { label: "Gross margin", unit: "pct", syn: ["gross margin","gm","gross profit margin"] },
+  op_margin:{ label: "Operating margin", unit: "pct", syn: ["operating margin","op margin","om","ebit margin"] },
+  net_margin:{ label: "Net margin", unit: "pct", syn: ["net margin","nm","profit margin","net profit margin"] },
+  rev_yoy:  { label: "Revenue growth y/y", unit: "pct", syn: ["revenue growth yoy","rev yoy","revenue yoy","sales growth yoy","revenue growth year over year"] },
+  ni_yoy:   { label: "Net income growth y/y", unit: "pct", syn: ["net income growth yoy","ni yoy","earnings growth yoy","net income yoy"] },
+  shares_yoy:{ label: "Share count change y/y", unit: "pct", syn: ["shares yoy","share count change","dilution","buyback","buybacks","shares outstanding growth"] },
+  eps_ttm:  { label: "EPS (TTM)", unit: "usd", syn: ["eps","earnings per share"] },
+};
+// trend fields: <metric>_<lg|lr|lm|eg|er|eb>
+const TREND_SYN = {
+  eps: ["eps","earnings per share","earnings"],
+  rps: ["revenue per share","rev per share","revenue/share","sales per share"],
+  fps: ["fcf per share","free cash flow per share","fcf/share"],
+  rev: ["revenue","sales","top line"],
+  ni:  ["net income","profit","earnings total","bottom line"],
+  fcf: ["free cash flow","fcf"],
+  gm:  ["gross margin"], om: ["operating margin"], bps: ["book value per share","book value"],
+};
+function buildFieldCatalog() {
+  const cat = { ...FIELDS };
+  for (const [m, syns] of Object.entries(TREND_SYN)) {
+    cat[m + "_lg"] = { label: TR_METRIC_LABEL[m] + " growth (linear fit)", unit: "pct",
+      syn: syns.flatMap(s => [s + " growth", s + " trend", s + " growth rate",
+        s + " linear growth", "linear " + s + " growth", s + " slope"]) };
+    cat[m + "_eg"] = { label: TR_METRIC_LABEL[m] + " growth (exponential fit)", unit: "pct",
+      syn: syns.flatMap(s => [s + " cagr", s + " exponential growth", "exponential " + s + " growth",
+        s + " compound growth", s + " compounding"]) };
+    cat[m + "_lr"] = { label: TR_METRIC_LABEL[m] + " linear fit R²", unit: "x",
+      syn: syns.flatMap(s => [s + " r2", s + " r²", s + " linear r2", s + " fit quality",
+        s + " trend consistency", s + " linearity"]) };
+    cat[m + "_er"] = { label: TR_METRIC_LABEL[m] + " exponential fit R²", unit: "x",
+      syn: syns.flatMap(s => [s + " exponential r²", s + " exp r²", s + " cagr r²",
+        "exponential " + s + " r²", s + " exponential fit r²"]) };
+    cat[m + "_lm"] = { label: TR_METRIC_LABEL[m] + " linear slope per year", unit: "usd",
+      syn: syns.map(s => s + " slope per year") };
+    cat[m + "_eb"] = { label: TR_METRIC_LABEL[m] + " exponential b", unit: "x",
+      syn: syns.map(s => s + " exponential b") };
+  }
+  return cat;
+}
+let CAT = null;
+
+const OPS = [
+  [/(^|\s)(<=|=<|no more than|at most|maximum|max|under|below|less than|cheaper than)\s*/i, "<="],
+  [/(^|\s)(>=|=>|at least|minimum|min|over|above|more than|greater than|higher than)\s*/i, ">="],
+  [/(^|\s)(<)\s*/, "<"], [/(^|\s)(>)\s*/, ">"],
+  [/(^|\s)(==|=|equals|equal to|is)\s*/i, ">="],
+];
+function parseCriterion(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+  let s = " " + raw.toLowerCase().replace(/[,]/g, "") + " ";
+  // normalise R² spellings FIRST so the "2" in "R2" is never read as a value
+  s = s.replace(/\br\s*(?:\^?2|²|-?squared|-?sq)\b/g, " r² ");
+  // shorthand phrases that imply a whole condition
+  const SHORT = [
+    [/shares?\s+(are\s+)?shrink|buying back|net buyback|reducing shares/, { field: "shares_yoy", op: "<", value: 0 }],
+    [/profitable|makes? money|positive earnings/, { field: "eps_ttm", op: ">", value: 0 }],
+    [/dilut(ing|ion)/, { field: "shares_yoy", op: ">", value: 0 }],
+  ];
+  for (const [re, f] of SHORT) if (re.test(s)) return { ...f, src: raw };
+  // operator
+  let op = null;
+  for (const [re, o] of OPS) {
+    if (re.test(s)) { op = o; s = s.replace(re, " "); break; }
+  }
+  // number (allow %, x, $)
+  const nm = s.match(/-?\d+(\.\d+)?\s*%?/);
+  if (!nm) return null;
+  let value = parseFloat(nm[0]);
+  const isPct = /%/.test(nm[0]);
+  s = (s.slice(0, nm.index) + " " + s.slice(nm.index + nm[0].length)).replace(/\s+/g, " ").trim();
+  s = s.replace(/\b(ratio|rate|of|per year|per yr|a year|yearly|annual|annually|is|the|in|for|at|:)\b/g, " ")
+       .replace(/[^a-z0-9/²\s]/g, " ").replace(/\s+/g, " ").trim();
+  if (!s) return null;
+  // best synonym match: longest phrase contained in the text
+  let best = null, bestLen = 0;
+  for (const [key, def] of Object.entries(CAT)) {
+    for (const syn of def.syn) {
+      const sy = syn.toLowerCase();
+      if (s.includes(sy) && sy.length > bestLen) { best = key; bestLen = sy.length; }
+    }
+  }
+  if (!best) return null;
+  const def = CAT[best];
+  if (!op) op = /margin|growth|cagr|trend|r²|r2/.test(def.label.toLowerCase()) ? ">=" : "<=";
+  if (def.unit === "pct" && (isPct || Math.abs(value) > 1.5)) value = value / 100;
+  return { field: best, op, value, src: raw };
+}
+function critLabel(c) {
+  const def = CAT[c.field] || { label: c.field, unit: "x" };
+  const v = def.unit === "pct" ? (100 * c.value).toFixed(1) + "%"
+          : def.unit === "usd" ? "$" + c.value : c.value;
+  return `${def.label} ${c.op} ${v}`;
+}
+function passes(x, c) {
+  const v = x[c.field];
+  if (typeof v !== "number" || Number.isNaN(v)) return false;
+  return c.op === "<=" ? v <= c.value : c.op === "<" ? v < c.value
+       : c.op === ">" ? v > c.value : v >= c.value;
+}
 
 const $ = id => document.getElementById(id);
 const fmt = (v, kind) => {
@@ -132,22 +279,86 @@ const fmt = (v, kind) => {
   return v;
 };
 
+const NCRIT = 6;                       // number of free-text criteria boxes
+const crits = new Array(NCRIT).fill(null);   // parsed criteria (or null)
+
+function buildCritRow() {
+  $("critRow").innerHTML = Array.from({ length: NCRIT }, (_, i) =>
+    `<div class="cbox"><input id="c${i}" placeholder="${i ? "another criterion…" : "e.g. P/E < 20"}">` +
+    `<div class="tag" id="ct${i}"></div></div>`).join("");
+  for (let i = 0; i < NCRIT; i++) {
+    const inp = $("c" + i);
+    inp.addEventListener("input", () => setCrit(i, inp.value, false));
+    inp.addEventListener("change", () => setCrit(i, inp.value, true));
+    inp.addEventListener("keydown", e => { if (e.key === "Enter") setCrit(i, inp.value, true); });
+  }
+}
+async function setCrit(i, text, allowAI) {
+  const inp = $("c" + i), tag = $("ct" + i);
+  inp.classList.remove("ok", "bad"); tag.className = "tag";
+  if (!text.trim()) { crits[i] = null; tag.textContent = ""; render(); return; }
+  const c = parseCriterion(text);
+  if (c) {
+    crits[i] = c; inp.classList.add("ok");
+    tag.className = "tag ok"; tag.textContent = "✓ " + critLabel(c);
+    render(); return;
+  }
+  crits[i] = null; render();
+  if (!allowAI) { tag.textContent = "…keep typing (Enter to ask the AI)"; return; }
+  tag.textContent = "asking the AI…";
+  const ai = await aiParse(text);
+  if (ai && CAT[ai.field]) {
+    crits[i] = { ...ai, src: text };
+    inp.classList.add("ok"); tag.className = "tag ok";
+    tag.textContent = "✓ AI: " + critLabel(crits[i]);
+  } else {
+    inp.classList.add("bad"); tag.className = "tag bad";
+    tag.textContent = ai === null
+      ? "couldn't interpret — try e.g. \"P/E < 20\" (AI needs the StockLab password)"
+      : "couldn't interpret that criterion";
+  }
+  render();
+}
+// ask the assistant to translate free text into {field, op, value}
+async function aiParse(text) {
+  const pass = localStorage.getItem("mfdb_ai_pass") || "";
+  const keys = JSON.parse(localStorage.getItem("mfdb_ai_keys") || "{}");
+  const prov = localStorage.getItem("mfdb_ai_prov") || "claude";
+  if (!pass && !keys[prov]) return null;
+  const fields = Object.entries(CAT)
+    .map(([k, d]) => `${k} = ${d.label} (${d.unit})`).join("; ");
+  const sys = "You convert one stock-screening criterion into JSON. Available " +
+    "fields: " + fields + ". Percentages are FRACTIONS (0.15 = 15%). Reply with " +
+    "ONLY a JSON object: {\"field\":\"<field key>\",\"op\":\"<=|>=|<|>\",\"value\":<number>}. " +
+    "No prose, no code fence.";
+  try {
+    let out = "";
+    if (pass) {
+      const r = await fetch("https://stocklab-ai-proxy.netlify.app/.netlify/functions/ai", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-stocklab-pass": pass },
+        body: JSON.stringify({ prov, op: "chat",
+          model: (JSON.parse(localStorage.getItem("mfdb_ai_model_choice") || "{}")[prov]) || "",
+          system: sys, messages: [{ role: "user", content: text }] }) });
+      const j = await r.json();
+      if (!r.ok) return false;
+      out = j.text || "";
+    } else { return null; }
+    const m = out.match(/\{[\s\S]*\}/);
+    if (!m) return false;
+    const o = JSON.parse(m[0]);
+    if (!o || !o.field || typeof o.value !== "number") return false;
+    return { field: o.field, op: ["<=", ">=", "<", ">"].includes(o.op) ? o.op : ">=", value: o.value };
+  } catch (e) { return false; }
+}
+
 function render() {
-  const q = $("q").value.trim().toUpperCase(), sec = $("sector").value,
-        maxpe = parseFloat($("maxpe").value), maxpfcf = parseFloat($("maxpfcf").value),
-        minrev = parseFloat($("minrev").value), mingm = parseFloat($("mingm").value),
-        bb = $("bb").value,
-        mineps = parseFloat($("mineps").value), minr2 = parseFloat($("minr2").value);
+  const q = $("q").value.trim().toUpperCase(), sec = $("sector").value;
+  const active = crits.filter(Boolean);
   let r = rows.filter(x =>
     (!q || x.ticker.includes(q) || (x.name||"").toUpperCase().includes(q)) &&
     (!sec || x.sector === sec) &&
-    (isNaN(maxpe) || (x.pe_ttm > 0 && x.pe_ttm <= maxpe)) &&
-    (isNaN(maxpfcf) || (x.pfcf_ttm > 0 && x.pfcf_ttm <= maxpfcf)) &&
-    (isNaN(minrev) || x.rev_yoy >= minrev/100) &&
-    (isNaN(mingm) || x.gross_margin >= mingm/100) &&
-    (isNaN(mineps) || (typeof x.eps_gr === "number" && x.eps_gr >= mineps/100)) &&
-    (isNaN(minr2) || (x.eps_gr_i && x.eps_gr_i[1] >= minr2)) &&
-    (!bb || (bb === "y" ? x.shares_yoy < 0 : x.shares_yoy < -0.03)));
+    active.every(c => passes(x, c)));
   r.sort((a,b) => {
     const va = a[sortKey], vb = b[sortKey];
     if (va == null) return 1; if (vb == null) return -1;
@@ -165,9 +376,10 @@ function render() {
       : fmt(v, kind);
     // trend cells carry the underlying fit in a tooltip (slope, R², points)
     let tip = "";
-    if (k.endsWith("_gr")) {
-      const i = x[k + "_i"];
-      tip = i ? ` title="linear fit: slope ${i[2] >= 0 ? "+" : ""}${i[2]} per year · R²=${i[1]} · ${i[3]} quarters"`
+    if (k.endsWith("_gr") || k.endsWith("_eg")) {
+      const m = k.split("_")[0], lm = x[m + "_lm"], lr = x[m + "_lr"],
+            eg = x[m + "_eg"], er = x[m + "_er"], n = x[m + "_n"];
+      tip = n ? ` title="linear: ${lm >= 0 ? "+" : ""}${lm}/yr, R²=${lr} · exponential: ${eg != null ? (100*eg).toFixed(1) + "%/yr" : "n/a"}, R²=${er} · ${n} quarters"`
               : ` title="not enough data for a fit"`;
     }
     return `<td class="${cls}"${tip}>${cell}</td>`; }).join("") + "</tr>").join("");
@@ -179,20 +391,37 @@ function render() {
   });
 }
 
+// presets now fill the free-text boxes, so you can see and edit what they do
 const PRESETS = {
-  cheapfcf: () => { $("maxpfcf").value = 20; $("minrev").value = 10; },
-  mb:       () => { $("mingm").value = 40; $("bb").value = "3"; },
+  cheapfcf: ["P/FCF < 20", "revenue growth y/y > 10%"],
+  mb:       ["gross margin > 40%", "shares shrinking"],
+  trend:    ["EPS growth > 12%", "EPS R2 > 0.85", "P/E < 30"],
 };
+function applyPreset(name) {
+  clearAll();
+  (PRESETS[name] || []).forEach((txt, i) => {
+    if (i < NCRIT) { $("c" + i).value = txt; setCrit(i, txt, false); }
+  });
+}
+function clearAll() {
+  $("q").value = ""; $("sector").value = "";
+  for (let i = 0; i < NCRIT; i++) {
+    $("c" + i).value = ""; crits[i] = null;
+    $("c" + i).classList.remove("ok", "bad");
+    $("ct" + i).textContent = ""; $("ct" + i).className = "tag";
+  }
+  render();
+}
 
 Promise.all([
   fetch("data/latest_ratios.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
-  // trend fits (v1.10.0) — optional: the table still works without them
-  fetch("data/trends.json").then(r => r.ok ? r.json() : null).catch(() => null),
+  loadWindow("40"),
 ])
-.then(([d, tr]) => {
+.then(([d]) => {
   rows = d;
-  TR = tr;
+  CAT = buildFieldCatalog();
   applyTrends();
+  buildCritRow();
   window.__screener = { rows: () => rows };
   $("asof").textContent = d[0]?.date || "?";
   [...new Set(d.map(x => x.sector).filter(Boolean))].sort().forEach(s => {
@@ -203,16 +432,20 @@ Promise.all([
     [med("ps_ttm").toFixed(1), "median P/S"], [(100*med("gross_margin")).toFixed(0)+"%", "median gross margin"],
     [d.filter(x => x.shares_yoy < -0.03).length, "buying back >3%/yr"],
   ].map(([v,k]) => `<div class="tile"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("");
-  ["q","sector","maxpe","maxpfcf","minrev","mingm","bb","mineps","minr2"]
-    .forEach(id => $(id).oninput = render);
-  $("tw").onchange = () => { trWin = $("tw").value; applyTrends(); render(); };
-  $("clear").onclick = () => { ["q","maxpe","maxpfcf","minrev","mingm","mineps","minr2"].forEach(id => $(id).value = ""); $("sector").value = ""; $("bb").value = ""; render(); };
-  document.querySelectorAll(".preset").forEach(b => b.onclick = () => { $("clear").onclick(); PRESETS[b.dataset.p](); render(); });
+  ["q", "sector"].forEach(id => $(id).oninput = render);
+  $("tw").onchange = async () => {
+    const w = $("tw").value;
+    $("status").textContent = "Loading trend window…";
+    if (await loadWindow(w)) trWin = w;
+    applyTrends(); render();
+  };
+  $("clear").onclick = clearAll;
+  document.querySelectorAll(".preset").forEach(b => b.onclick = () => applyPreset(b.dataset.p));
   render();
 })
 .catch(e => { $("status").textContent = "Failed to load data/latest_ratios.json (" + e.message + "). The first daily run after this page was deployed populates it."; });
 </script>
-<script src="chat.js?v=v1.10.0" defer></script>
-<script src="menu.js?v=v1.10.0" defer></script>
+<script src="chat.js?v=v1.11.0" defer></script>
+<script src="menu.js?v=v1.11.0" defer></script>
 </body>
 </html>

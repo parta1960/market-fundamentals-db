@@ -21,6 +21,35 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.11.0 — 2026-08-17
+
+- **Free-text screening.** The fixed filter boxes (Max P/E, Max P/FCF, Min rev
+  growth …) are gone. In their place are six empty boxes that accept ANY
+  criterion in plain language — `P/E < 20`, `EPS growth > 15%`, `price to
+  sales under 4`, `gross margin at least 40`, `FCF per share trend > 10%`,
+  `EPS R² > 0.9`, `shares shrinking`. Each box shows the interpretation it
+  applied ("✓ EPS growth (linear fit) > 15.0%") so nothing is applied blindly,
+  and the border turns green (understood) or red (not understood).
+  A built-in parser handles the wording above instantly and offline; anything
+  it can't map is sent to the AI assistant to translate into
+  {field, operator, value} (needs the StockLab password once). The three
+  presets now WRITE INTO the boxes instead of hiding their logic.
+- **Both fit families are now in the database and screenable** (`etl/
+  history_export.py` → `docs/data/trends_<window>.json`, one file per window,
+  ~250 KB each, loaded on demand): for 9 series (EPS, revenue/share,
+  FCF/share, revenue, net income, FCF, gross margin, operating margin,
+  book/share) × 3 windows (5y / 10y / all), each with **linear** (growth %/yr,
+  R², slope/yr) and **exponential** (growth %/yr, R², b) parameters plus the
+  quarter count — 378 screenable numbers per company.
+- Screener gains **EPS CAGR / Rev-sh CAGR / FCF-sh CAGR** columns (exponential
+  fit) next to the existing linear trend columns; hovering any of them shows
+  both fits side by side. Every other fit parameter is reachable through the
+  criteria boxes and the AI (e.g. "revenue R2 > 0.95", "net income CAGR > 20%").
+- Exponential parameters verified against an independent numpy fit (AAPL EPS
+  10y: +15.78%/yr, b=0.1465, R²=0.934 — exact match); a combined screen was
+  cross-checked against a direct pandas query over the same files (27 tickers,
+  identical list).
+
 ## v1.10.0 — 2026-08-17
 
 - **Trend growth columns on the screener**: EPS trend, Rev/sh trend and
