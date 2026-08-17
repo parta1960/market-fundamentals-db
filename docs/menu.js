@@ -13,16 +13,43 @@
     box-shadow:0 8px 28px rgba(0,0,0,.6); display:none; overflow:hidden;
     font-size:13.5px; }
   #slMenu.open { display:block; }
-  #slMenu .mi { display:block; width:100%; text-align:left; background:none;
+  #slMenu .mi { display:flex; align-items:center; gap:11px; width:100%;
+    text-align:left; background:none;
     border:none; border-bottom:1px solid #21262d; color:#e6edf3;
     padding:11px 14px; font-size:13.5px; cursor:pointer;
     text-decoration:none; box-sizing:border-box; }
   #slMenu .mi:hover { background:#1c2128; }
+  #slMenu .mi svg { flex:none; color:#9aa4b2; }
+  #slMenu .mi:hover svg { color:#e6edf3; }
+  #slMenu .danger, #slMenu .danger svg { color:#ffb3ad; }
+  #slMenu .mcount { color:#6e7681; }
+  #slMenu .mdel { margin-left:auto; color:#6e7681; cursor:pointer;
+    padding:0 2px; font-size:12px; }
+  #slMenu .mdel:hover { color:#f85149; }
   #slMenu .mhead { padding:10px 14px; color:#6e7681; font-size:11.5px;
-    border-bottom:1px solid #21262d; }
-  #slMenu .danger { color:#ffb3ad; }`;
+    border-bottom:1px solid #21262d; }`;
   const st = document.createElement("style"); st.textContent = css;
   document.head.appendChild(st);
+
+  // v1.16.1 — one consistent, minimalist icon set (stroke-only inline SVG,
+  // single weight and size) instead of mixed emoji that render differently
+  // on every OS.
+  const ic = d => `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+    stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const IC = {
+    key: ic('<path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m3 3L22 7l-3-3"/>'),
+    share: ic('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>'),
+    list: ic('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'),
+    chart: ic('<path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/>'),
+    rank: ic('<path d="M18 20V10M12 20V4M6 20v-6"/>'),
+    star: ic('<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/>'),
+    grid: ic('<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>'),
+    save: ic('<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>'),
+    doc: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>'),
+    book: ic('<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'),
+    trash: ic('<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>'),
+  };
 
   const btn = document.createElement("button");
   btn.id = "slMenuBtn"; btn.textContent = "☰ Menu";
@@ -41,17 +68,17 @@
   menu.id = "slMenu";
   menu.innerHTML = `
     <div class="mhead" id="slMenuInfo">StockLab ${ver}</div>
-    <button class="mi" id="slAiSetup">🤖 AI setup — password &amp; API keys</button>
-    <button class="mi" id="slShare">🔗 Share this view (copy link)</button>
-    <a class="mi" href="index.html">📋 Screener</a>
-    <a class="mi" href="charts.html">📈 History Charts</a>
-    <a class="mi" href="rankings.html">🏆 Rankings</a>
+    <button class="mi" id="slAiSetup">${IC.key}AI setup — password &amp; API keys</button>
+    <button class="mi" id="slShare">${IC.share}Share this view (copy link)</button>
+    <a class="mi" href="index.html">${IC.list}Screener</a>
+    <a class="mi" href="charts.html">${IC.chart}History Charts</a>
+    <a class="mi" href="rankings.html">${IC.rank}Rankings</a>
     <div id="slMenuDyn"></div>
     <a class="mi" target="_blank" rel="noopener"
-       href="https://github.com/parta1960/market-fundamentals-db/blob/main/CHANGELOG.md">📜 Changelog (what's new)</a>
+       href="https://github.com/parta1960/market-fundamentals-db/blob/main/CHANGELOG.md">${IC.doc}Changelog (what's new)</a>
     <a class="mi" target="_blank" rel="noopener"
-       href="https://github.com/parta1960/market-fundamentals-db">🧪 Methodology &amp; source data</a>
-    <button class="mi danger" id="slAiReset">🧹 Reset AI settings on this device</button>`;
+       href="https://github.com/parta1960/market-fundamentals-db">${IC.book}Methodology &amp; source data</a>
+    <button class="mi danger" id="slAiReset">${IC.trash}Reset AI settings on this device</button>`;
   document.body.appendChild(menu);
   const $ = id => document.getElementById(id);
 
@@ -61,17 +88,15 @@
     if (!window.__sl) { dyn.innerHTML = ""; return; }
     const favN = window.__sl.favs().length;
     const ports = window.__sl.ports(), screens = window.__sl.screens();
-    let h = `<a class="mi" href="index.html?list=fav">★ Favorites` +
-            ` <span style="color:#6e7681">(${favN})</span></a>`;
+    let h = `<a class="mi" href="index.html?list=fav">${IC.star}Favorites` +
+            ` <span class="mcount">(${favN})</span></a>`;
     for (const n of Object.keys(ports).sort())
-      h += `<a class="mi" href="index.html?port=${encodeURIComponent(n)}">▦ ${n}` +
-           ` <span style="color:#6e7681">(${ports[n].length})</span>` +
-           `<span class="mdel" data-kind="port" data-n="${n}" title="delete this portfolio"` +
-           ` style="float:right;color:#6e7681;cursor:pointer;">✕</span></a>`;
+      h += `<a class="mi" href="index.html?port=${encodeURIComponent(n)}">${IC.grid}${n}` +
+           ` <span class="mcount">(${ports[n].length})</span>` +
+           `<span class="mdel" data-kind="port" data-n="${n}" title="delete this portfolio">✕</span></a>`;
     for (const n of Object.keys(screens).sort())
-      h += `<a class="mi" href="index.html?screen=${encodeURIComponent(n)}">💾 ${n}` +
-           `<span class="mdel" data-kind="screen" data-n="${n}" title="delete this saved screen"` +
-           ` style="float:right;color:#6e7681;cursor:pointer;">✕</span></a>`;
+      h += `<a class="mi" href="index.html?screen=${encodeURIComponent(n)}">${IC.save}${n}` +
+           `<span class="mdel" data-kind="screen" data-n="${n}" title="delete this saved screen">✕</span></a>`;
     dyn.innerHTML = h;
     dyn.querySelectorAll(".mdel").forEach(x => x.onclick = e => {
       e.preventDefault(); e.stopPropagation();

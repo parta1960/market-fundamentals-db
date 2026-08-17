@@ -21,6 +21,17 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.16.1 — 2026-08-17
+
+- **Consistent, minimalist ☰ menu icons.** The mixed emoji (🤖 🔗 📋 📈 🏆 ★
+  ▦ 💾 📜 🧪 🧹), which render differently on every OS and font, are replaced
+  with one coherent inline-SVG icon set: stroke-only, single 1.7px weight,
+  single 15px size, monochrome grey that brightens on hover (red for the
+  destructive reset row). Dynamic rows (Favorites, portfolios, saved screens)
+  use the same set — star, grid, bookmark — and their delete ✕ aligns
+  right via flex instead of float. Zero external assets; the icons live in
+  menu.js as ~20 short path strings.
+
 ## v1.16.0 — 2026-08-17
 
 - **%metric — a unitless trend measure for every linear fit** (user request:
