@@ -21,6 +21,16 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.17.1 — 2026-08-17
+
+- **New chart defaults + 9-chart limit** (user request, marked up on a
+  screenshot). The charts page now opens with the user's chosen nine:
+  EPS (TTM), Revenue/share, FCF/share, Price, Market cap, P/E, P/S, P/FCF and
+  P/B — everything else starts unchecked. The previous 6-chart ceiling (which
+  couldn't fit this set) is raised to 9 everywhere: the metric picker
+  (a 10th pick still replaces the oldest), the draw loop, and the AI
+  app-control contract.
+
 ## v1.17.0 — 2026-08-17
 
 - **Rankings: stackable filter levels + explicit ⚡ Rank button** (user

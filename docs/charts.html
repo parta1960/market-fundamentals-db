@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — History Charts</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.17.0"></script>
-<script src="vendor/chart.umd.min.js?v=v1.17.0"></script>
+<script src="version.js?v=v1.17.1"></script>
+<script src="vendor/chart.umd.min.js?v=v1.17.1"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -109,7 +109,7 @@
 </div>
 
 <details class="mpanel" open><summary style="cursor:pointer; color:var(--ink2); font-size:12.5px;">
-  Metrics (up to 6 charted — picking a 7th replaces the oldest)</summary>
+  Metrics (up to 9 charted — picking a 10th replaces the oldest)</summary>
   <div class="groups" id="mgroups"></div>
 </details>
 
@@ -147,7 +147,10 @@ const SLOTS = ["--s1","--s2","--s3","--s4"].map(v =>
 const INK2 = "#9aa4b2", GRID = "#21262d";
 let MAN = null, CACHE = {}, charts = [], lastQ = 0;
 
-const DEFAULT_METRICS = ["revenue_ttm", "eps_ttm", "fcf_ttm", "pe_ttm"];
+// v1.17.1 defaults chosen by the user: the three per-share series plus the
+// full valuation block. Everything else starts unchecked.
+const DEFAULT_METRICS = ["eps_ttm", "revenue_ps", "fcf_ps", "close",
+                         "mktcap", "pe_ttm", "ps_ttm", "pfcf_ttm", "pb"];
 const state = { t: "AAPL", metrics: DEFAULT_METRICS.slice(), per: 0, cmp: [] };
 
 function fromURL() {
@@ -525,7 +528,7 @@ async function draw() {
     ds.forEach(d => tableCols.push({ head: d.label, data: d.data, unit: mi.unit }));
   } else {
     labels = sliceN(main.quarters, state.per);
-    for (const k of state.metrics.slice(0, 6)) {
+    for (const k of state.metrics.slice(0, 9)) {
       const mi = metricInfo(k);
       const data = sliceN(main.series[k] || main.quarters.map(() => null), state.per);
       const marks = splitMarks(main, labels);
@@ -569,7 +572,7 @@ function buildMetricPanel() {
   $("mgroups").querySelectorAll("input").forEach(cb => cb.onchange = () => {
     if (cb.checked) { if (!selOrder.includes(cb.value)) selOrder.push(cb.value); }
     else selOrder = selOrder.filter(v => v !== cb.value);
-    while (selOrder.length > 6) {
+    while (selOrder.length > 9) {
       const drop = selOrder.shift();
       const el = [...$("mgroups").querySelectorAll("input")].find(x => x.value === drop);
       if (el) el.checked = false;
@@ -607,7 +610,7 @@ fetch("data/history/manifest.json").then(r => r.json()).then(m => {
     state: () => state, MAN: () => MAN, getHist,
     apply(cmd) {
       if (cmd.t) { state.t = String(cmd.t).toUpperCase(); $("tick").value = state.t; }
-      if (Array.isArray(cmd.m) && cmd.m.length) state.metrics = cmd.m.slice(0, 6);
+      if (Array.isArray(cmd.m) && cmd.m.length) state.metrics = cmd.m.slice(0, 9);
       if (cmd.p !== undefined) { state.per = +cmd.p || 0;
         document.querySelectorAll("[data-p]").forEach(x =>
           x.classList.toggle("on", +x.dataset.p === state.per)); }
@@ -621,8 +624,8 @@ fetch("data/history/manifest.json").then(r => r.json()).then(m => {
 }).catch(e => { $("status").textContent =
   "Failed to load manifest (" + e.message + "). The first daily run after deploy populates it."; });
 </script>
-<script src="chat.js?v=v1.17.0" defer></script>
-<script src="menu.js?v=v1.17.0" defer></script>
-<script src="stocklab.js?v=v1.17.0" defer></script>
+<script src="chat.js?v=v1.17.1" defer></script>
+<script src="menu.js?v=v1.17.1" defer></script>
+<script src="stocklab.js?v=v1.17.1" defer></script>
 </body>
 </html>

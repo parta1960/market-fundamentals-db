@@ -436,7 +436,7 @@ include exactly one fenced block like:
 \`\`\`app
 {"t":"NVDA","m":["gross_margin","pe_ttm"],"p":60,"c":["AMD"]}
 \`\`\`
-where t=ticker, m=metric keys from the catalog (max 6), p=quarters back
+where t=ticker, m=metric keys from the catalog (max 9), p=quarters back
 (20=5y, 40=10y, 60=15y, 80=20y, 0=all), c=compare tickers (max 3, only with a
 single metric). Only include the block when the user wants the view changed.
 On the screener page the block opens the History Charts page with that view.
