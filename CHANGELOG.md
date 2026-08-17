@@ -21,6 +21,21 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.14.0 — 2026-08-17
+
+- **New Rankings tab** (`docs/rankings.html`, linked 🏆 from the screener and
+  charts headers). Ranks every company by the SLOPE of its linear fit with the
+  fit's R² alongside, colour-coded by trustworthiness: green ≥ 0.8 (the slope
+  is a faithful summary of the series), amber 0.5–0.8 (real trend, real
+  wobble), grey < 0.5 (the slope is not a reliable description). Defaults to
+  EPS slope, 10-year window, descending; a dropdown re-ranks by Rev/share,
+  FCF/share, Book/share or margin slopes, plus window selector (5y/10y/all),
+  a Min-R² cutoff box, sector filter and search. Every column header
+  re-sorts; tickers link to their history charts; first row and column stay
+  frozen while scrolling. Reuses the existing `trends_<w>.json` +
+  `latest_ratios.json` — no new data files, so rankings refresh automatically
+  with each daily run.
+
 ## v1.13.0 — 2026-08-17
 
 - **Exponential fits removed everywhere.** `_exp_trend()` is gone from
