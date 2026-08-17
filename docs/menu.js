@@ -45,6 +45,8 @@
     <button class="mi" id="slShare">🔗 Share this view (copy link)</button>
     <a class="mi" href="index.html">📋 Screener</a>
     <a class="mi" href="charts.html">📈 History Charts</a>
+    <a class="mi" href="rankings.html">🏆 Rankings</a>
+    <div id="slMenuDyn"></div>
     <a class="mi" target="_blank" rel="noopener"
        href="https://github.com/parta1960/market-fundamentals-db/blob/main/CHANGELOG.md">📜 Changelog (what's new)</a>
     <a class="mi" target="_blank" rel="noopener"
@@ -53,9 +55,36 @@
   document.body.appendChild(menu);
   const $ = id => document.getElementById(id);
 
+  // v1.15.0: favorites, portfolios and saved screens — rebuilt on every open
+  function fillDyn() {
+    const dyn = $("slMenuDyn");
+    if (!window.__sl) { dyn.innerHTML = ""; return; }
+    const favN = window.__sl.favs().length;
+    const ports = window.__sl.ports(), screens = window.__sl.screens();
+    let h = `<a class="mi" href="index.html?list=fav">★ Favorites` +
+            ` <span style="color:#6e7681">(${favN})</span></a>`;
+    for (const n of Object.keys(ports).sort())
+      h += `<a class="mi" href="index.html?port=${encodeURIComponent(n)}">▦ ${n}` +
+           ` <span style="color:#6e7681">(${ports[n].length})</span>` +
+           `<span class="mdel" data-kind="port" data-n="${n}" title="delete this portfolio"` +
+           ` style="float:right;color:#6e7681;cursor:pointer;">✕</span></a>`;
+    for (const n of Object.keys(screens).sort())
+      h += `<a class="mi" href="index.html?screen=${encodeURIComponent(n)}">💾 ${n}` +
+           `<span class="mdel" data-kind="screen" data-n="${n}" title="delete this saved screen"` +
+           ` style="float:right;color:#6e7681;cursor:pointer;">✕</span></a>`;
+    dyn.innerHTML = h;
+    dyn.querySelectorAll(".mdel").forEach(x => x.onclick = e => {
+      e.preventDefault(); e.stopPropagation();
+      if (!confirm(`Delete ${x.dataset.kind === "port" ? "portfolio" : "saved screen"} "${x.dataset.n}"?`)) return;
+      x.dataset.kind === "port" ? window.__sl.delPort(x.dataset.n)
+                                : window.__sl.delScreen(x.dataset.n);
+      fillDyn();
+    });
+  }
+
   btn.onclick = () => {
     menu.classList.toggle("open");
-    if (menu.classList.contains("open")) fillInfo();
+    if (menu.classList.contains("open")) { fillInfo(); fillDyn(); }
   };
   document.addEventListener("click", e => {
     if (!menu.contains(e.target) && e.target !== btn)

@@ -1,7 +1,10 @@
-// StockLab AI proxy (v1.6.0).
+// StockLab AI proxy (v1.15.0).
 // Provider API keys live ONLY in Netlify environment variables — never in the
 // public site or repo. Every request must carry the StockLab password in the
-// x-stocklab-pass header. Serves two ops: {op:"models"} and {op:"chat"}.
+// x-stocklab-pass header. Ops: {op:"models"}, {op:"chat"}, and — new in
+// v1.15.0 — {op:"sync_get"} / {op:"sync_put", data} which keep ONE small JSON
+// blob (favorites, portfolios, saved screens, AI conversation) in Netlify
+// Blobs so the same state appears on every device that knows the password.
 const ORIGINS = ["https://parta1960.github.io", "http://localhost:8777"];
 const KEYS = { claude: "CLAUDE_KEY", gemini: "GEMINI_KEY",
                deepseek: "DEEPSEEK_KEY", kimi: "KIMI_KEY" };
@@ -22,13 +25,43 @@ exports.handler = async (ev) => {
   let b;
   try { b = JSON.parse(ev.body || "{}"); }
   catch { return resp(400, { error: "bad json" }, H); }
-  const key = process.env[KEYS[b.prov] || ""];
-  if (!key) return resp(400, { error: "no key configured for provider: " + b.prov }, H);
   try {
+    if (b.op === "sync_get") return resp(200, await syncGet(), H);
+    if (b.op === "sync_put") return resp(200, await syncPut(b.data), H);
+    const key = process.env[KEYS[b.prov] || ""];
+    if (!key) return resp(400, { error: "no key configured for provider: " + b.prov }, H);
     const out = b.op === "models" ? await models(b.prov, key) : await chat(b, key);
     return resp(200, out, H);
   } catch (e) { return resp(502, { error: String(e.message || e) }, H); }
 };
+
+// ---- cross-device state sync (v1.15.0) — Netlify Blobs via the REST API.
+// NETLIFY_TOKEN + SL_SITE_ID are set as env vars by netlify_deploy.py; the
+// blob never leaves Netlify and is only reachable through this
+// password-gated function.
+const BLOB = () =>
+  `https://api.netlify.com/api/v1/blobs/${process.env.SL_SITE_ID}/stocklab/state`;
+const BH = () => ({ authorization: "Bearer " + process.env.NETLIFY_TOKEN });
+
+async function syncGet() {
+  if (!process.env.NETLIFY_TOKEN || !process.env.SL_SITE_ID)
+    throw new Error("sync not configured");
+  const r = await fetch(BLOB(), { headers: BH() });
+  if (r.status === 404) return { data: null };
+  if (!r.ok) throw new Error("blob get HTTP " + r.status);
+  return { data: await r.json() };
+}
+
+async function syncPut(data) {
+  if (!process.env.NETLIFY_TOKEN || !process.env.SL_SITE_ID)
+    throw new Error("sync not configured");
+  const body = JSON.stringify(data || {});
+  if (body.length > 900000) throw new Error("state too large");
+  const r = await fetch(BLOB(), { method: "PUT",
+    headers: { ...BH(), "content-type": "application/json" }, body });
+  if (!r.ok) throw new Error("blob put HTTP " + r.status);
+  return { ok: true };
+}
 
 function resp(s, obj, H) {
   return { statusCode: s, body: JSON.stringify(obj),

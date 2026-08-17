@@ -50,9 +50,13 @@ def main():
     sid = site["id"]
     print("site:", site["ssl_url"] or site["url"])
 
-    # 2) env vars (upsert)
+    # 2) env vars (upsert) — v1.15.0 adds NETLIFY_TOKEN + SL_SITE_ID so the
+    # function can keep the cross-device sync blob in Netlify Blobs.
     acct = site["account_slug"]
-    for k, v in SECRETS.items():
+    env = dict(SECRETS)
+    env["NETLIFY_TOKEN"] = TOKEN
+    env["SL_SITE_ID"] = sid
+    for k, v in env.items():
         body = [{"key": k, "scopes": ["functions"],
                  "values": [{"value": v, "context": "all"}]}]
         try:
@@ -109,6 +113,12 @@ def main():
         code, j = hit(SECRETS["STOCKLAB_PASS"], {"prov": prov, "op": "models"})
         tops = (j.get("models") or [])[:3]
         print(f"{prov}: HTTP {code} models[:3]={tops} err={j.get('error')}")
+    # v1.15.0: round-trip the sync blob
+    code, j = hit(SECRETS["STOCKLAB_PASS"],
+                  {"op": "sync_put", "data": {"ts": 1, "probe": "deploy-test"}})
+    print("sync_put:", code, j)
+    code, j = hit(SECRETS["STOCKLAB_PASS"], {"op": "sync_get"})
+    print("sync_get:", code, str(j)[:120])
     print("ENDPOINT:", ep)
 
 

@@ -21,6 +21,40 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.15.0 — 2026-08-17
+
+- **Page navigation** in the fixed top bar: ◀ back, ▶ forward and "⇥ latest"
+  buttons step through the views you've visited this session (screener →
+  rankings → a ticker's charts → …) and jump straight back to the newest one.
+- **Favorites & portfolios.** Every stock — in the screener, the rankings and
+  on its chart page — carries a ☆ star (favorite) and a ▦ button that opens a
+  portfolio picker with an on-the-spot "＋ New portfolio…" option. The ☰ Menu
+  now lists ★ Favorites and every portfolio (with counts, ✕ to delete);
+  choosing one opens the screener filtered to just those stocks.
+- **Saved screens.** New 💾 "Save screen" button stores the current free-text
+  criteria + trend window under a name; saved screens appear in the ☰ Menu and
+  re-apply on click (AI-interpreted criteria re-parse automatically).
+- **Cross-device sync.** Favorites, portfolios, saved screens AND the AI
+  conversation now sync between phone and desktop through the password-gated
+  proxy (new `sync_get`/`sync_put` ops storing one JSON blob in Netlify Blobs
+  — provider keys and the blob never touch the public site). Newest timestamp
+  wins; everything still works purely locally until the StockLab password is
+  entered on a device.
+- **HAL-9000 AI button.** The 🤖 icon is now a glowing red eye (pure CSS
+  radial gradient) that brightens when the panel is open.
+- **Yahoo Finance links.** A small Y! chip next to every stock opens its Yahoo
+  quote page in a new tab for side-by-side comparison.
+- **Yahoo-style stock sections** on the charts page: a pill bar per ticker
+  with Summary (key-numbers strip from OUR database: close, market cap, P/E,
+  P/S, P/FCF, P/B, revenue/EPS/FCF TTM, margins, shares, splits, breaks),
+  Chart, Statistics, Financials and Historical data (all internal), plus
+  News / Profile / Analysis / Options / Holders / Community as deep links
+  into the matching Yahoo tab — that content is Yahoo's own licensed data and
+  scraping it into StockLab isn't feasible or permitted, so linking is the
+  honest version of that feature.
+- New shared module `docs/stocklab.js`; ☰ Menu also gained the 🏆 Rankings
+  link.
+
 ## v1.14.0 — 2026-08-17
 
 - **New Rankings tab** (`docs/rankings.html`, linked 🏆 from the screener and

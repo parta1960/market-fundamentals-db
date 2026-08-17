@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — History Charts</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.14.0"></script>
-<script src="vendor/chart.umd.min.js?v=v1.14.0"></script>
+<script src="version.js?v=v1.15.0"></script>
+<script src="vendor/chart.umd.min.js?v=v1.15.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -65,6 +65,20 @@
     position:sticky; left:0; background:var(--bg); }
   table.dt th:first-child { z-index:3; }
   footer { color:var(--ink3); font-size:11.5px; padding:8px 24px 26px; max-width:980px; }
+  /* v1.15.0 Yahoo-style per-stock section bar + summary strip */
+  #stocknav { display:flex; gap:6px; flex-wrap:wrap; padding:6px 24px 2px; }
+  #stocknav .sn { background:var(--surface); color:var(--ink2); border:1px solid var(--border);
+    border-radius:999px; padding:5px 12px; font-size:12px; cursor:pointer;
+    text-decoration:none; }
+  #stocknav .sn:hover { color:var(--ink); border-color:var(--ink3); }
+  #stocknav .sn.ext { color:#a58fff; }
+  #stocknav .sn.ext:hover { border-color:#a58fff; }
+  #sumwrap { display:none; flex-wrap:wrap; gap:10px; padding:8px 24px 4px; }
+  #sumwrap.open { display:flex; }
+  .sumtile { background:var(--surface); border:1px solid var(--border);
+    border-radius:8px; padding:8px 13px; min-width:118px; }
+  .sumtile .v { font-size:16px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .sumtile .k { font-size:10.5px; color:var(--ink2); margin-top:1px; }
 </style>
 </head>
 <body>
@@ -100,6 +114,8 @@
 </details>
 
 <div id="tname"></div>
+<div id="stocknav"></div>
+<div id="sumwrap"></div>
 <div class="charts" id="charts"></div>
 <div id="dtwrap"></div>
 <div id="status">Loading…</div>
@@ -171,6 +187,63 @@ async function getHist(t) {
 }
 
 function metricInfo(k) { return MAN.metrics.find(m => m.k === k) || {k, label:k, unit:"x"}; }
+
+/* v1.15.0 — Yahoo-style per-stock section bar + summary strip.
+ * Summary / Chart / Statistics / Financials / Historical data run on OUR
+ * database; News / Profile / Analysis / Options / Holders / Community are
+ * deep links into the matching Yahoo Finance tab for the same ticker (that
+ * content is Yahoo's own and can't be reproduced here). */
+let snBuilt = false, snHist = null;
+function updateStockNav(main) {
+  snHist = main;
+  const nav = $("stocknav");
+  if (!snBuilt) {
+    snBuilt = true;
+    nav.innerHTML = `
+      <button class="sn" id="snSum" title="key numbers for this company from the StockLab database">Summary</button>
+      <button class="sn" id="snChart" title="jump to the charts">Chart</button>
+      <button class="sn" id="snStats" title="chart the valuation ratios">Statistics</button>
+      <button class="sn" id="snFin" title="chart the income / cash-flow lines">Financials</button>
+      <button class="sn" id="snHistD" title="quarterly numbers as a table">Historical data</button>` +
+      [["news", "News"], ["profile", "Profile"], ["analysis", "Analysis"],
+       ["options", "Options"], ["holders", "Holders"], ["community", "Community"]]
+      .map(([p, l]) => `<a class="sn ext" id="snY_${p}" target="_blank" rel="noopener"
+        title="open the ${l} tab on Yahoo Finance">${l} ↗</a>`).join("");
+    $("snSum").onclick = () => { const w = $("sumwrap");
+      w.classList.toggle("open"); if (w.classList.contains("open")) fillSummary(); };
+    $("snChart").onclick = () => $("charts").scrollIntoView({ behavior: "smooth" });
+    const preset = m => { if (window.__app) window.__app.apply({ m }); };
+    $("snStats").onclick = () => preset(["pe_ttm", "ps_ttm", "pfcf_ttm", "pb"]);
+    $("snFin").onclick = () => preset(["revenue_ttm", "net_income_ttm", "eps_ttm",
+                                       "fcf_ttm", "gross_margin", "op_margin"]);
+    $("snHistD").onclick = () => {
+      if (!$("tbl").checked) { $("tbl").checked = true;
+        draw().then(() => $("dtwrap").scrollIntoView({ behavior: "smooth" })); }
+      else $("dtwrap").scrollIntoView({ behavior: "smooth" });
+    };
+  }
+  for (const p of ["news", "profile", "analysis", "options", "holders", "community"])
+    $("snY_" + p).href = "https://finance.yahoo.com/quote/" +
+      encodeURIComponent(main.ticker) + "/" + p;
+  if ($("sumwrap").classList.contains("open")) fillSummary();
+}
+function fillSummary() {
+  const h = snHist; if (!h) return;
+  const last = k => { const s = h.series[k] || [];
+    for (let i = s.length - 1; i >= 0; i--) if (s[i] !== null && s[i] !== undefined) return s[i];
+    return null; };
+  const t = (v, k, u) => `<div class="sumtile"><div class="v">${fmt(v, u)}</div><div class="k">${k}</div></div>`;
+  $("sumwrap").innerHTML =
+    t(last("close"), "close (q-end)", "ps") + t(last("mktcap"), "market cap", "usd") +
+    t(last("pe_ttm"), "P/E (TTM)", "x") + t(last("ps_ttm"), "P/S (TTM)", "x") +
+    t(last("pfcf_ttm"), "P/FCF (TTM)", "x") + t(last("pb"), "P/B", "x") +
+    t(last("revenue_ttm"), "revenue (TTM)", "usd") + t(last("eps_ttm"), "EPS (TTM)", "ps") +
+    t(last("fcf_ttm"), "FCF (TTM)", "usd") + t(last("gross_margin"), "gross margin", "pct") +
+    t(last("op_margin"), "op margin", "pct") + t(last("net_margin"), "net margin", "pct") +
+    t(last("shares"), "shares out", "cnt") +
+    `<div class="sumtile"><div class="v">${(h.splits || []).length}</div><div class="k">stock splits on record</div></div>` +
+    `<div class="sumtile"><div class="v">${(h.breaks || []).length}</div><div class="k">structural breaks</div></div>`;
+}
 
 // ---- stock-split markers (v1.5.0) ----------------------------------------
 // The exporter ships doc.splits = [{d:"2014-06-09", r:7}, ...]. On every
@@ -379,8 +452,11 @@ async function draw() {
   let main;
   try { main = await getHist(state.t); }
   catch (e) { $("status").textContent = "No data for “" + state.t + "”."; return; }
-  $("tname").textContent = main.ticker + " — " + (main.name || "") +
-    (main.sector ? " · " + main.sector.toLowerCase() : "");
+  $("tname").innerHTML = `<b>${main.ticker}</b> — ${main.name || ""}` +
+    (main.sector ? " · " + main.sector.toLowerCase() : "") + " " +
+    (window.__sl ? window.__sl.controlsHTML(main.ticker) : "");
+  if (window.__sl) window.__sl.paint($("tname"));
+  updateStockNav(main);
   lastQ = main.quarters[main.quarters.length - 1];
 
   const compare = state.cmp.length > 0 && state.metrics.length === 1;
@@ -536,7 +612,8 @@ fetch("data/history/manifest.json").then(r => r.json()).then(m => {
 }).catch(e => { $("status").textContent =
   "Failed to load manifest (" + e.message + "). The first daily run after deploy populates it."; });
 </script>
-<script src="chat.js?v=v1.14.0" defer></script>
-<script src="menu.js?v=v1.14.0" defer></script>
+<script src="chat.js?v=v1.15.0" defer></script>
+<script src="menu.js?v=v1.15.0" defer></script>
+<script src="stocklab.js?v=v1.15.0" defer></script>
 </body>
 </html>

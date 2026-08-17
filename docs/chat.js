@@ -49,6 +49,8 @@
   function saveHist() {
     try { localStorage.setItem(LS_HIST, JSON.stringify(history.slice(-40))); }
     catch (e) { /* quota — keep the in-memory conversation anyway */ }
+    // v1.15.0: mark the shared state dirty so it syncs to your other devices
+    if (window.__sl && window.__sl.touch) window.__sl.touch();
   }
 
   /* ---------- styles ---------- */
@@ -113,7 +115,13 @@
     border-color:#484f58 !important; font-weight:600; }
   #aiClose:hover { background:#f85149 !important; border-color:#f85149 !important;
     color:#fff; }
-  #slBarAi.on { background:#1f6feb; border-color:#1f6feb; color:#fff; }`;
+  #slBarAi.on { background:#1f6feb; border-color:#1f6feb; color:#fff; }
+  .halEye { display:inline-block; width:15px; height:15px; border-radius:50%;
+    vertical-align:-2px;
+    background:radial-gradient(circle at 50% 42%, #ffd9d4 0 8%, #ff3b30 16%,
+      #a40000 42%, #300 68%, #000 100%);
+    box-shadow:0 0 7px rgba(255,48,48,.75), inset 0 0 2px #000; }
+  #slBarAi.on .halEye { box-shadow:0 0 12px rgba(255,48,48,1), inset 0 0 2px #000; }`;
   const st = document.createElement("style"); st.textContent = css;
   document.head.appendChild(st);
 
@@ -125,13 +133,13 @@
   bar.id = "slBar";
   bar.innerHTML = `
     <span id="slMenuSlot"></span>
-    <button class="slBarBtn" id="slBarAi" title="open / close the AI panel">🤖</button>
+    <button class="slBarBtn" id="slBarAi" title="open / close the AI panel"><span class="halEye"></span></button>
     <input id="slBarIn" placeholder="Ask StockLab AI — about any company's 20-year data, or tell it what to chart…">
     <select id="aiProv" title="AI provider"></select>
     <select id="aiModel" title="model — list auto-updates from the provider"></select>
     <button class="slBarBtn" id="slBarMic" title="dictate your question">🎤</button>
     <button class="slBarBtn" id="slBarSend" title="send to the AI">↑</button>
-    <button class="slBarBtn" id="slBarPill">🤖 Ask StockLab AI</button>
+    <button class="slBarBtn" id="slBarPill"><span class="halEye"></span> Ask StockLab AI</button>
     <button class="slBarBtn" id="slBarMin" title="minimize / expand the chat box">&gt;&lt;</button>`;
   document.body.prepend(bar);
   document.body.style.paddingTop = "56px";
@@ -355,25 +363,31 @@
       msg("err", "Password rejected: " + e.message);
     }
   };
-  // hook for the site menu (v1.7.0): open the panel with both setup rows
-  window.__ai = { setup() {
-    setPanel(true);
-    el("aiPassRow").classList.add("open"); el("aiKeyRow").classList.add("open");
-  } };
   // restore the saved conversation (v1.9.2) — survives reloads and moving
-  // between the screener and the charts page
-  (function restoreHist() {
+  // between pages. v1.15.0: also re-invoked by the cross-device sync when a
+  // newer conversation arrives from your other device.
+  function restoreHist(note) {
     let saved = [];
     try { saved = JSON.parse(localStorage.getItem(LS_HIST) || "[]"); }
     catch (e) { saved = []; }
     if (!Array.isArray(saved) || !saved.length) return;
     history = saved;
+    el("aiMsgs").innerHTML = "";
     for (const m of saved) {
       const txt = String(m.text || "").replace(/```app[\s\S]*?```/g, "").trim();
       if (txt) msg(m.role === "user" ? "user" : "bot", txt);
     }
-    msg("act", "↑ earlier conversation restored (↺ clear erases it).");
-  })();
+    msg("act", note || "↑ earlier conversation restored (↺ clear erases it).");
+  }
+  // hooks for the site menu (v1.7.0) and the sync module (v1.15.0)
+  window.__ai = {
+    setup() {
+      setPanel(true);
+      el("aiPassRow").classList.add("open"); el("aiKeyRow").classList.add("open");
+    },
+    reloadHist() { restoreHist("↕ conversation synced from your other device."); },
+  };
+  restoreHist();
   refreshModels(false);
   el("aiSend").onclick = send;
   el("aiIn").addEventListener("keydown", e => {
