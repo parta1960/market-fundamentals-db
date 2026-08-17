@@ -21,6 +21,17 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.16.2 — 2026-08-17
+
+- **%metric made findable** (user feedback: "I don't see %EPS in the
+  filtering"). Rankings gained an "Order by" selector — Slope / **%metric
+  (unitless)** / Fit R² — so ranking by %EPS no longer requires knowing the
+  column header is clickable. The screener's first criteria box placeholder
+  now reads "e.g. %EPS > 10 · P/E < 20" and the help line leads with %EPS
+  and %Rev/sh examples. Short names (%Rev/sh, %FCF/sh, %Book/sh, %GM, %OM,
+  rps, fps, bps) added to the parser's synonyms, and ≥ / ≤ are now accepted
+  operators (the help text uses them).
+
 ## v1.16.1 — 2026-08-17
 
 - **Consistent, minimalist ☰ menu icons.** The mixed emoji (🤖 🔗 📋 📈 🏆 ★

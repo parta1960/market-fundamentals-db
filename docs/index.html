@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — S&P 500 + Nasdaq-100 fundamentals</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.16.1"></script>
+<script src="version.js?v=v1.16.2"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -98,12 +98,12 @@
 <!-- v1.11.0: free-text screening criteria, interpreted locally and (when the
      phrasing is unfamiliar) by the AI. -->
 <div class="crit" id="critRow"></div>
-<div class="crithelp">Type any criterion — e.g. <code>P/E &lt; 20</code> ·
-  <code>EPS growth &gt; 15%</code> · <code>price to sales under 4</code> ·
-  <code>FCF per share trend &gt; 10%</code> · <code>shares shrinking</code> ·
-  <code>gross margin at least 40</code>. Wording the built-in parser doesn't
-  recognise is sent to the AI to translate (needs the StockLab password once:
-  ☰ Menu → AI setup).</div>
+<div class="crithelp">Type any criterion — e.g. <code>%EPS &gt; 10</code> ·
+  <code>%Rev/sh &gt; 8</code> · <code>P/E &lt; 20</code> ·
+  <code>EPS fit R² &ge; 0.9</code> · <code>price to sales under 4</code> ·
+  <code>shares shrinking</code> · <code>gross margin at least 40</code>.
+  Wording the built-in parser doesn't recognise is sent to the AI to translate
+  (needs the StockLab password once: ☰ Menu → AI setup).</div>
 
 <div class="wrap"><table id="t"><thead></thead><tbody></tbody></table></div>
 <div id="status">Loading data…</div>
@@ -211,12 +211,13 @@ const FIELDS = {
 // trend fields: <metric>_<lg|lr|lm|eg|er|eb>
 const TREND_SYN = {
   eps: ["eps","earnings per share","earnings"],
-  rps: ["revenue per share","rev per share","revenue/share","sales per share"],
-  fps: ["fcf per share","free cash flow per share","fcf/share"],
+  rps: ["revenue per share","rev per share","revenue/share","rev/sh","rps","sales per share"],
+  fps: ["fcf per share","free cash flow per share","fcf/share","fcf/sh","fps"],
   rev: ["revenue","sales","top line"],
   ni:  ["net income","profit","earnings total","bottom line"],
   fcf: ["free cash flow","fcf"],
-  gm:  ["gross margin"], om: ["operating margin"], bps: ["book value per share","book value"],
+  gm:  ["gross margin","gm"], om: ["operating margin","om"],
+  bps: ["book value per share","book value","book/sh","bps"],
 };
 function buildFieldCatalog() {
   const cat = { ...FIELDS };
@@ -241,8 +242,8 @@ function buildFieldCatalog() {
 let CAT = null;
 
 const OPS = [
-  [/(^|\s)(<=|=<|no more than|at most|maximum|max|under|below|less than|cheaper than)\s*/i, "<="],
-  [/(^|\s)(>=|=>|at least|minimum|min|over|above|more than|greater than|higher than)\s*/i, ">="],
+  [/(^|\s)(<=|=<|≤|no more than|at most|maximum|max|under|below|less than|cheaper than)\s*/i, "<="],
+  [/(^|\s)(>=|=>|≥|at least|minimum|min|over|above|more than|greater than|higher than)\s*/i, ">="],
   [/(^|\s)(<)\s*/, "<"], [/(^|\s)(>)\s*/, ">"],
   [/(^|\s)(==|=|equals|equal to|is)\s*/i, ">="],
 ];
@@ -315,7 +316,7 @@ const crits = new Array(NCRIT).fill(null);   // parsed criteria (or null)
 
 function buildCritRow() {
   $("critRow").innerHTML = Array.from({ length: NCRIT }, (_, i) =>
-    `<div class="cbox"><input id="c${i}" placeholder="${i ? "another criterion…" : "e.g. P/E < 20"}">` +
+    `<div class="cbox"><input id="c${i}" placeholder="${i ? "another criterion…" : "e.g. %EPS > 10 · P/E < 20"}">` +
     `<div class="tag" id="ct${i}"></div></div>`).join("");
   for (let i = 0; i < NCRIT; i++) {
     const inp = $("c" + i);
@@ -518,8 +519,8 @@ Promise.all([
 })
 .catch(e => { $("status").textContent = "Failed to load data/latest_ratios.json (" + e.message + "). The first daily run after this page was deployed populates it."; });
 </script>
-<script src="chat.js?v=v1.16.1" defer></script>
-<script src="menu.js?v=v1.16.1" defer></script>
-<script src="stocklab.js?v=v1.16.1" defer></script>
+<script src="chat.js?v=v1.16.2" defer></script>
+<script src="menu.js?v=v1.16.2" defer></script>
+<script src="stocklab.js?v=v1.16.2" defer></script>
 </body>
 </html>

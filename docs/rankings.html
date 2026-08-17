@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — Rankings</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.16.1"></script>
+<script src="version.js?v=v1.16.2"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -68,6 +68,12 @@
       <option value="bps">Book value / share, $/yr</option>
       <option value="gm">Gross margin, pts/yr</option>
       <option value="om">Operating margin, pts/yr</option>
+    </select></label>
+  <label title="which fit quantity decides the ranking order">Order by
+    <select id="ord" style="width:150px">
+      <option value="lm" selected>Slope (units/yr)</option>
+      <option value="pg">%metric (/yr, unitless)</option>
+      <option value="lr">Fit R²</option>
     </select></label>
   <label title="window used for the linear fits">Trend window
     <select id="tw"><option value="20">5 years</option>
@@ -199,6 +205,7 @@ Promise.all([
   [...new Set(d.map(x => x.sector).filter(Boolean))].sort().forEach(s => {
     const o = document.createElement("option"); o.value = o.textContent = s; $("sector").appendChild(o); });
   ["metric", "minr2", "sector", "q"].forEach(id => $(id).oninput = render);
+  $("ord").onchange = () => { sortKey = $("ord").value; sortDir = -1; render(); };
   $("tw").onchange = async () => {
     $("status").textContent = "Loading trend window…";
     const w = $("tw").value;
@@ -209,8 +216,8 @@ Promise.all([
 })
 .catch(e => { $("status").textContent = "Failed to load data (" + e.message + ")."; });
 </script>
-<script src="chat.js?v=v1.16.1" defer></script>
-<script src="menu.js?v=v1.16.1" defer></script>
-<script src="stocklab.js?v=v1.16.1" defer></script>
+<script src="chat.js?v=v1.16.2" defer></script>
+<script src="menu.js?v=v1.16.2" defer></script>
+<script src="stocklab.js?v=v1.16.2" defer></script>
 </body>
 </html>
