@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — S&P 500 + Nasdaq-100 fundamentals</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.11.0"></script>
+<script src="version.js?v=v1.12.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -148,6 +148,8 @@ function applyTrends() {
       TR_FIELDS.forEach((f, i) => { r[m + "_" + f] = v ? v[i] : null; });
     }
     r.eps_gr = r.eps_lg; r.rps_gr = r.rps_lg; r.fps_gr = r.fps_lg;
+    const bb = t._b;                       // [years since last break, count]
+    r.break_yrs = bb ? bb[0] : 99; r.break_n = bb ? bb[1] : 0;
   }
 }
 async function loadWindow(w) {
@@ -176,6 +178,12 @@ const FIELDS = {
   ni_yoy:   { label: "Net income growth y/y", unit: "pct", syn: ["net income growth yoy","ni yoy","earnings growth yoy","net income yoy"] },
   shares_yoy:{ label: "Share count change y/y", unit: "pct", syn: ["shares yoy","share count change","dilution","buyback","buybacks","shares outstanding growth"] },
   eps_ttm:  { label: "EPS (TTM)", unit: "usd", syn: ["eps","earnings per share"] },
+  // v1.12.0 structural breaks (spin-off / divestiture / transforming acquisition)
+  break_yrs:{ label: "Years since last structural break", unit: "x",
+    syn: ["years since structural break","years since break","years since spinoff",
+          "years since spin off","time since spinoff","years since restructuring"] },
+  break_n:  { label: "Number of structural breaks", unit: "x",
+    syn: ["structural breaks","number of spinoffs","spinoffs","breaks"] },
 };
 // trend fields: <metric>_<lg|lr|lm|eg|er|eb>
 const TREND_SYN = {
@@ -228,6 +236,8 @@ function parseCriterion(text) {
     [/shares?\s+(are\s+)?shrink|buying back|net buyback|reducing shares/, { field: "shares_yoy", op: "<", value: 0 }],
     [/profitable|makes? money|positive earnings/, { field: "eps_ttm", op: ">", value: 0 }],
     [/dilut(ing|ion)/, { field: "shares_yoy", op: ">", value: 0 }],
+    [/no (structural )?break|no spin ?-?off|clean history|uninterrupted/,
+      { field: "break_yrs", op: ">=", value: 10 }],
   ];
   for (const [re, f] of SHORT) if (re.test(s)) return { ...f, src: raw };
   // operator
@@ -445,7 +455,7 @@ Promise.all([
 })
 .catch(e => { $("status").textContent = "Failed to load data/latest_ratios.json (" + e.message + "). The first daily run after this page was deployed populates it."; });
 </script>
-<script src="chat.js?v=v1.11.0" defer></script>
-<script src="menu.js?v=v1.11.0" defer></script>
+<script src="chat.js?v=v1.12.0" defer></script>
+<script src="menu.js?v=v1.12.0" defer></script>
 </body>
 </html>

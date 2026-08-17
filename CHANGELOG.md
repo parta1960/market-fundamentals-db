@@ -21,6 +21,34 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.12.0 — 2026-08-17
+
+- **Structural-break (spin-off) detection.** `etl/history_export.py`
+  `detect_breaks()` finds quarters where a company's revenue steps to a
+  sustained new level — a spin-off, divestiture, deconsolidation or
+  transforming acquisition. Detected FROM THE DATA (no hand-kept event list,
+  so it covers every company and stays current): each quarter is compared
+  with the same quarter a year earlier (seasonality cancels), the change must
+  be step-like (prior year normal — so fast organic compounding is NOT
+  flagged; AAPL, MSFT, INTC come back clean) and the new level must hold for
+  about a year (filters one-quarter reporting glitches and COVID dips that
+  snap back). 204 of 515 companies have at least one; ratios beyond 5x/0.2x
+  are tagged "verify". Shipped in each ticker JSON as `breaks`.
+- **Charts**: an amber dashed vertical line marks each break, with a tooltip
+  ("structural break: revenue −45% …"). New **"fit after break"** control (on
+  by default) restricts both fits to the data after the most recent break.
+  The effect on Abbott, whose pharma arm became AbbVie on 1 Jan 2013:
+  revenue/share fitted over all history gives **+1.7%/yr with R²=0.17**
+  (meaningless — two different companies); fitted after the break it gives
+  **+6.2%/yr with R²=0.89**. Compare mode marks post-break tickers with `*`.
+- **Screener**: two new screenable fields, `Years since last structural break`
+  and `Number of structural breaks`, so a screen can exclude companies whose
+  fits span a corporate transformation — e.g. type `no structural break`
+  (= none in 10 years), `years since spinoff > 15`, `structural breaks < 1`.
+- Note on what is NOT detected: separations too small to move revenue 35%+
+  (JNJ/Kenvue, MMM/Solventum) do not trigger — by design, since they don't
+  distort a fit materially.
+
 ## v1.11.0 — 2026-08-17
 
 - **Free-text screening.** The fixed filter boxes (Max P/E, Max P/FCF, Min rev

@@ -218,6 +218,55 @@ def _lin_trend(dates, ys):
     return (g, r2, float(m), len(y))
 
 
+def detect_breaks(quarters, rev):
+    """Sudden, SUSTAINED shifts in the revenue level (v1.12.0).
+
+    A spin-off, divestiture, deconsolidation or transforming acquisition moves
+    a company's revenue to a new plateau; fits that span such a break describe
+    two different companies. Detection compares each quarter with the SAME
+    quarter a year earlier (so seasonality cancels), requires the change to be
+    step-like (the prior year was normal — otherwise fast organic compounding
+    would be flagged) and requires the new level to hold for about a year
+    (which filters out one-quarter reporting glitches and COVID-style dips
+    that snap back).
+
+    Returns [{"d": quarter, "r": level ratio after/before, "t": "s"|"x"}]
+    where "x" marks changes so extreme (>5x or <0.2x) they deserve a manual
+    look before being trusted.
+    """
+    import statistics as st
+    ev, n = [], len(rev)
+    for i in range(4, n):
+        a, b = rev[i - 4], rev[i]
+        if not a or not b or a <= 0 or b <= 0:
+            continue
+        yy = b / a
+        pyy = None
+        if i >= 5 and rev[i - 5] and rev[i - 1] and rev[i - 5] > 0 and rev[i - 1] > 0:
+            pyy = rev[i - 1] / rev[i - 5]
+        drop = yy <= 0.65 and (pyy is None or pyy >= 0.8)
+        jump = yy >= 1.6 and (pyy is None or pyy <= 1.25)
+        if not (drop or jump):
+            continue
+        before = [v for v in rev[max(0, i - 4):i] if v and v > 0]
+        after = [v for v in rev[i:i + 4] if v and v > 0]
+        if len(before) < 3 or len(after) < 3:
+            continue
+        mr = st.median(after) / st.median(before)
+        if drop and mr > 0.75:
+            continue
+        if jump and mr < 1.35:
+            continue
+        ev.append((i, mr))
+    out, last = [], -99
+    for i, mr in ev:
+        if i - last > 3:
+            out.append({"d": quarters[i], "r": _sig(mr, 3),
+                        "t": "s" if 0.2 <= mr <= 5 else "x"})
+        last = i
+    return out
+
+
 def _exp_trend(dates, ys):
     """Least-squares y = a*e^(b*t) via ln(y) (positive values only).
 
@@ -395,6 +444,7 @@ def build():
     # ---- split events per ticker (v1.5.0): charts mark the first data point
     # after each split so split handling is verifiable by eye.
     splits_by = {}
+    breaks_by = {}          # ticker -> structural revenue breaks (v1.12.0)
     if split_factor is not None:
         for t, g in ev.groupby("ticker"):
             splits_by[t] = [
@@ -424,6 +474,10 @@ def build():
         }
         if splits_by.get(t):
             doc["splits"] = splits_by[t]
+        brk = detect_breaks(doc["quarters"], doc["series"].get("revenue") or [])
+        if brk:
+            doc["breaks"] = brk
+            breaks_by[t] = brk
         # drop metrics that are entirely null for this ticker (smaller files)
         doc["series"] = {k: v for k, v in doc["series"].items()
                         if any(x is not None for x in v)}
@@ -451,6 +505,17 @@ def build():
     # One file per window so the page only downloads the window in use.
     os.makedirs("docs/data", exist_ok=True)
     allw = build_trends(wide)
+    # years since the last structural break, so screens can exclude companies
+    # whose fits span a spin-off / transforming acquisition (v1.12.0)
+    asof = pd.Timestamp(manifest["as_of"])
+    for w, data in allw.items():
+        for t, rec in data.items():
+            b = breaks_by.get(t)
+            if b:
+                yrs = (asof - pd.Timestamp(b[-1]["d"])).days / 365.25
+                rec["_b"] = [_sig(yrs, 3), len(b)]
+            else:
+                rec["_b"] = [99, 0]
     head = {"as_of": manifest["as_of"],
             "windows": [str(w) for w in TREND_WINDOWS],
             "metrics": TREND_METRICS, "fields": TREND_FIELDS}

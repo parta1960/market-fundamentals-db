@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — History Charts</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.11.0"></script>
-<script src="vendor/chart.umd.min.js?v=v1.11.0"></script>
+<script src="version.js?v=v1.12.0"></script>
+<script src="vendor/chart.umd.min.js?v=v1.12.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -88,6 +88,9 @@
     <input type="checkbox" id="log" style="width:auto; accent-color:var(--accent);"> log scale</label>
   <label style="flex-direction:row; align-items:center; gap:6px; padding-bottom:8px;">
     <input type="checkbox" id="tbl" style="width:auto; accent-color:var(--accent);"> data table</label>
+  <label style="flex-direction:row; align-items:center; gap:6px; padding-bottom:8px;"
+         title="fit only the data after the last structural break (spin-off, divestiture or transforming acquisition)">
+    <input type="checkbox" id="pb" checked style="width:auto; accent-color:var(--accent);"> fit after break</label>
 </div>
 
 <details class="mpanel" open><summary style="cursor:pointer; color:var(--ink2); font-size:12.5px;">
@@ -110,6 +113,12 @@
   growth per year, R² in log space) and dotted = linear y=c+m·t (all values,
   R² in plain space). Whichever R² is higher describes the series better.
   Fits recompute automatically as new quarters arrive.
+  An amber vertical line marks a STRUCTURAL BREAK — a quarter where revenue
+  stepped to a sustained new level (spin-off, divestiture, deconsolidation or
+  transforming acquisition), detected from the data itself, not a hand-kept
+  list. Before/after such a break the numbers describe different companies, so
+  "fit after break" (on by default) restricts the fits to the period after the
+  most recent one.
   Negative-earnings quarters show no P/E. Educational tool, not investment advice.
 </footer>
 
@@ -166,7 +175,37 @@ function metricInfo(k) { return MAN.metrics.find(m => m.k === k) || {k, label:k,
 // The exporter ships doc.splits = [{d:"2014-06-09", r:7}, ...]. On every
 // chart the FIRST data point on/after each split date is drawn as a pink
 // diamond so split handling is verifiable by eye (hover shows ratio + date).
-const SPLIT_C = "#db61a2";
+const SPLIT_C = "#db61a2", BREAK_C = "#e3b341";
+
+// ---- structural breaks (v1.12.0) -----------------------------------------
+// doc.breaks = [{d, r, t}] — a spin-off / divestiture / transforming
+// acquisition moved revenue to a new level. Drawn as a vertical amber line;
+// with "fit after break" ticked the fits use only data after the last one.
+function breakIdx(hist, labels) {
+  const out = [];
+  (hist.breaks || []).forEach(b => {
+    const j = labels.indexOf(b.d);
+    if (j > 0) out.push({ i: j, b });
+  });
+  return out;
+}
+const breakLinePlugin = {
+  id: "slBreaks",
+  afterDatasetsDraw(chart) {
+    const marks = chart.$slBreaks || [];
+    if (!marks.length) return;
+    const { ctx, chartArea, scales } = chart;
+    ctx.save();
+    ctx.strokeStyle = BREAK_C; ctx.lineWidth = 1.4; ctx.setLineDash([5, 4]);
+    marks.forEach(m => {
+      const x = scales.x.getPixelForValue(m.i);
+      if (x < chartArea.left || x > chartArea.right) return;
+      ctx.beginPath(); ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom); ctx.stroke();
+    });
+    ctx.restore();
+  },
+};
+if (window.Chart) Chart.register(breakLinePlugin);
 const fRatio = r => r >= 1 ? (+(+r).toFixed(2)) + ":1" : "1:" + (+(1 / r).toFixed(2));
 function splitMarks(hist, labels, prefix) {
   const m = {};
@@ -299,11 +338,18 @@ function tickMap(labels) {
   return map;
 }
 
-function mkChart(canvas, labels, datasets, unit, padTop) {
+function mkChart(canvas, labels, datasets, unit, padTop, brks) {
   const log = $("log").checked && unit !== "pct" &&
     datasets.every(d => d.data.every(v => v === null || v > 0));
   const tm = tickMap(labels);
-  return new Chart(canvas, {
+  const bmap = {};
+  (brks || []).forEach(m => {
+    const pct = m.b.r < 1 ? "−" + (100 * (1 - m.b.r)).toFixed(0) + "%"
+                          : "+" + (100 * (m.b.r - 1)).toFixed(0) + "%";
+    bmap[m.i] = "structural break: revenue " + pct + " (spin-off, divestiture " +
+      "or transforming acquisition)" + (m.b.t === "x" ? " — extreme, verify" : "");
+  });
+  const ch = new Chart(canvas, {
     type: "line",
     data: { labels, datasets: datasets.map((d, i) => {
       const col = SLOTS[(d.slot ?? i) % SLOTS.length];
@@ -340,10 +386,14 @@ function mkChart(canvas, labels, datasets, unit, padTop) {
           callbacks: { label: c => (c.dataset.label ? c.dataset.label + ": " : "") +
                                    fmt(c.parsed.y, unit),
                        afterLabel: c => c.dataset.marks && c.dataset.marks[c.dataIndex]
-                                   ? "◆ " + c.dataset.marks[c.dataIndex] : "" } },
+                                   ? "◆ " + c.dataset.marks[c.dataIndex] : "",
+                       afterBody: items => items.length && bmap[items[0].dataIndex]
+                                   ? "❚ " + bmap[items[0].dataIndex] : "" } },
       },
     },
   });
+  ch.$slBreaks = brks || [];
+  return ch;
 }
 
 function renderTable(labels, cols) {
@@ -406,19 +456,24 @@ async function draw() {
     // in-chart table
     const fitRows = [];
     const withFits = [];
+    const allH = [main, ...others];
     ds.forEach((d, i) => {
       d.slot = i;
       withFits.push(d);
-      const ef = expFit(labels, d.data), lf = linFit(labels, d.data);
-      if (ef) withFits.push({ label: d.label + " · fit", data: labels.map(ef.at),
+      const hb = breakIdx(allH[i] || main, labels);
+      const f0 = ($("pb").checked && hb.length) ? hb[hb.length - 1].i : 0;
+      const fLab = labels.slice(f0), fDat = d.data.slice(f0);
+      const ef = expFit(fLab, fDat), lf = linFit(fLab, fDat);
+      const fitAt = fit => labels.map((q, j) => j >= f0 ? fit.at(q) : null);
+      if (ef) withFits.push({ label: d.label + " · fit", data: fitAt(ef),
                               isFit: true, slot: i });
-      if (lf) withFits.push({ label: d.label + " · fit", data: labels.map(lf.at),
+      if (lf) withFits.push({ label: d.label + " · fit", data: fitAt(lf),
                               isFit: true, dash: [2, 3], slot: i });
-      fitRows.push([d.label, ef, lf]);
+      fitRows.push([d.label + (f0 ? "*" : ""), ef, lf]);
     });
     wrap.querySelector(".cwrap").insertAdjacentHTML("beforeend", fitBox(fitRows, mi.unit));
     charts.push(mkChart(wrap.querySelector("canvas"), labels, withFits, mi.unit,
-                        fitPad(fitRows)));
+                        fitPad(fitRows), breakIdx(main, labels)));
     ds.forEach(d => tableCols.push({ head: d.label, data: d.data, unit: mi.unit }));
   } else {
     labels = sliceN(main.quarters, state.per);
@@ -426,26 +481,34 @@ async function draw() {
       const mi = metricInfo(k);
       const data = sliceN(main.series[k] || main.quarters.map(() => null), state.per);
       const marks = splitMarks(main, labels);
-      const ef = expFit(labels, data), lf = linFit(labels, data);
+      const brks = breakIdx(main, labels);
+      // fit only after the last structural break when asked (v1.12.0)
+      const f0 = ($("pb").checked && brks.length) ? brks[brks.length - 1].i : 0;
+      const fLab = labels.slice(f0), fDat = data.slice(f0);
+      const ef = expFit(fLab, fDat), lf = linFit(fLab, fDat);
+      const fitAt = fit => labels.map((d, i) => i >= f0 ? fit.at(d) : null);
+      const note = f0 ? " · fits use data after the break only" : "";
       const wrap = document.createElement("div"); wrap.className = "panel";
-      wrap.innerHTML = `<h3>${mi.label}</h3><div class="meta">${main.ticker} · quarterly · exp fit dashed, linear fit dotted</div><div class="cwrap"><canvas></canvas>${fitBox([["", ef, lf]], mi.unit)}</div>`;
+      wrap.innerHTML = `<h3>${mi.label}</h3><div class="meta">${main.ticker} · quarterly · exp fit dashed, linear fit dotted${note}</div><div class="cwrap"><canvas></canvas>${fitBox([["", ef, lf]], mi.unit)}</div>`;
       $("charts").appendChild(wrap);
       const ds = [{ label: "", data, marks, slot: 0 }];
-      if (ef) ds.push({ label: "· fit", data: labels.map(ef.at), isFit: true, slot: 0 });
-      if (lf) ds.push({ label: "· fit", data: labels.map(lf.at), isFit: true, dash: [2, 3], slot: 0 });
+      if (ef) ds.push({ label: "· fit", data: fitAt(ef), isFit: true, slot: 0 });
+      if (lf) ds.push({ label: "· fit", data: fitAt(lf), isFit: true, dash: [2, 3], slot: 0 });
       charts.push(mkChart(wrap.querySelector("canvas"), labels, ds, mi.unit,
-                          fitPad([["", ef, lf]])));
+                          fitPad([["", ef, lf]]), brks));
       tableCols.push({ head: mi.label, data, unit: mi.unit });
     }
   }
   renderTable(labels, tableCols);
   const anySplits = [main].concat(compare ? state.cmp.map(t => CACHE[t]).filter(Boolean) : [])
     .some(h => (h.splits || []).length);
+  const anyBreaks = (main.breaks || []).length > 0;
+  const bits = [];
+  if (anySplits) bits.push(`<span style="color:${SPLIT_C}">◆</span> = first data point after a stock split (hover for ratio and date)`);
+  if (anyBreaks) bits.push(`<span style="color:${BREAK_C}">❚</span> = structural break in revenue — spin-off, divestiture or transforming acquisition (hover the line)`);
   $("status").innerHTML = compare && state.metrics.length > 1
     ? "Compare mode uses the first selected metric only."
-    : (anySplits
-       ? `<span style="color:${SPLIT_C}">◆</span> = first data point after a stock split — hover it for the ratio and date`
-       : "");
+    : bits.join(" &nbsp;·&nbsp; ");
 }
 
 function buildMetricPanel() {
@@ -490,6 +553,7 @@ fetch("data/history/manifest.json").then(r => r.json()).then(m => {
       .split(/[,\s]+/).filter(Boolean).slice(0, 3); draw(); };
   $("log").onchange = draw;
   $("tbl").onchange = draw;
+  $("pb").onchange = draw;
   buildMetricPanel();
   // bridge for the AI assistant (chat.js)
   window.__app = {
@@ -510,7 +574,7 @@ fetch("data/history/manifest.json").then(r => r.json()).then(m => {
 }).catch(e => { $("status").textContent =
   "Failed to load manifest (" + e.message + "). The first daily run after deploy populates it."; });
 </script>
-<script src="chat.js?v=v1.11.0" defer></script>
-<script src="menu.js?v=v1.11.0" defer></script>
+<script src="chat.js?v=v1.12.0" defer></script>
+<script src="menu.js?v=v1.12.0" defer></script>
 </body>
 </html>
