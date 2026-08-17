@@ -1,1 +1,1 @@
-{"as_of":"2026-07-31","windows":["20","40","0"],"metrics":{"eps":"eps_ttm","rps":"revenue_ps","fps":"fcf_ps","rev":"revenue_ttm","ni":"net_income_ttm","fcf":"fcf_ttm","gm":"gross_margin","om":"op_margin","bps":"book_ps"},"fields":["lg","lr","lm","n"]}
+{"as_of":"2026-07-31","windows":["20","40","0"],"metrics":{"eps":"eps_ttm","rps":"revenue_ps","fps":"fcf_ps","rev":"revenue_ttm","ni":"net_income_ttm","fcf":"fcf_ttm","gm":"gross_margin","om":"op_margin","bps":"book_ps"},"fields":["lg","lr","lm","pg","n"]}
