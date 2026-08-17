@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — Rankings</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.16.3"></script>
+<script src="version.js?v=v1.17.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -83,10 +83,16 @@
     <select id="tw"><option value="20">5 years</option>
       <option value="40" selected>10 years</option>
       <option value="0">All history</option></select></label>
-  <label title="hide rows whose fit explains less variance than this — a big slope with low R² is noise, not a trend">Min R²
-    <input type="number" id="minr2" min="0" max="1" step="0.05" value="0" style="width:80px"></label>
   <label>Sector <select id="sector" style="width:150px"><option value="">All</option></select></label>
-  <label>Search <input type="text" id="q" placeholder="ticker or name"></label>
+</div>
+
+<!-- v1.17.0: stackable filter levels — every level must pass. Nothing runs
+     until ⚡ Rank is pressed. -->
+<div class="filters" id="filtRows" style="padding-top:0;"></div>
+<div class="filters" style="padding-top:0;">
+  <button id="runBtn" style="background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:700;padding:8px 22px;">⚡ Rank</button>
+  <button id="clrBtn" title="clear every filter level">Clear filters</button>
+  <span id="filtNote" style="color:#6e7681;font-size:11.5px;align-self:center;"></span>
 </div>
 
 <div class="wrap"><table id="t"><thead></thead><tbody></tbody></table></div>
@@ -103,7 +109,11 @@
   the UNITLESS trend measure: the slope divided by the metric's LATEST value
   (e.g. %EPS = EPS slope $/yr ÷ current TTM EPS), per year — so companies of
   any size compare directly. Blank when the latest value is near or below
-  zero, where a percentage would be noise. Click any column header to re-sort;
+  zero, where a percentage would be noise.
+  FILTER LEVELS (v1.17.0) stack with AND logic: a company must pass every
+  level (e.g. Fit R² ≥ 0.8 AND P/E ≤ 30 AND gross margin ≥ 40%) before it is
+  ranked; companies missing a filtered value are excluded. Nothing recomputes
+  until ⚡ Rank is pressed. Click any column header to re-sort;
   click a ticker for its history charts. Educational tool, not investment
   advice — <a href="https://github.com/parta1960/market-fundamentals-db">methodology</a>.
 </footer>
@@ -143,7 +153,55 @@ function buildRows() {
     if (!v) continue;                              // no fit for this window
     out.push({ ticker: x.ticker, name: x.name || "", sector: x.sector || "",
                lg: v[gi("lg")], lr: v[gi("lr")], lm: v[gi("lm")],
-               pg: gi("pg") >= 0 ? v[gi("pg")] : null, n: v[gi("n")] });
+               pg: gi("pg") >= 0 ? v[gi("pg")] : null, n: v[gi("n")],
+               // ratio fields available as extra filter levels (v1.17.0)
+               pe: x.pe_ttm, ps: x.ps_ttm, pfcf: x.pfcf_ttm, pb: x.pb,
+               gmv: x.gross_margin, omv: x.op_margin, nmv: x.net_margin,
+               revy: x.rev_yoy, niy: x.ni_yoy, shy: x.shares_yoy,
+               eps: x.eps_ttm, close: x.close });
+  }
+  return out;
+}
+
+/* ---- stackable filter levels (v1.17.0) — every level must pass ---------- */
+const FILTER_FIELDS = [
+  ["",     "— no filter —", "x"],
+  ["lr",   "Fit R² (ranked metric)", "x"],
+  ["pg",   "%metric (ranked), %/yr", "pct"],
+  ["lm",   "Slope (ranked), units/yr", "x"],
+  ["pe",   "P/E (TTM)", "x"],
+  ["ps",   "P/S (TTM)", "x"],
+  ["pfcf", "P/FCF (TTM)", "x"],
+  ["pb",   "P/B", "x"],
+  ["gmv",  "Gross margin level, %", "pct"],
+  ["omv",  "Operating margin level, %", "pct"],
+  ["nmv",  "Net margin level, %", "pct"],
+  ["revy", "Revenue growth y/y, %", "pct"],
+  ["niy",  "Net income growth y/y, %", "pct"],
+  ["shy",  "Share count change y/y, %", "pct"],
+  ["eps",  "EPS (TTM), $", "x"],
+  ["close","Price, $", "x"],
+];
+const NFILT = 4;
+function buildFiltRows() {
+  $("filtRows").innerHTML = Array.from({ length: NFILT }, (_, i) => `
+    <label>Filter level ${i + 1}
+      <span style="display:flex;gap:6px;">
+        <select id="f${i}k" style="width:195px">${FILTER_FIELDS.map(([k, l]) =>
+          `<option value="${k}">${l}</option>`).join("")}</select>
+        <select id="f${i}o" style="width:58px"><option value=">=">≥</option><option value="<=">≤</option></select>
+        <input id="f${i}v" type="number" step="any" style="width:85px" placeholder="value">
+      </span></label>`).join("");
+  $("f0k").value = "lr";                       // suggest the natural first level
+}
+function activeFilters() {
+  const out = [];
+  for (let i = 0; i < NFILT; i++) {
+    const k = $("f" + i + "k").value, raw = $("f" + i + "v").value.trim();
+    if (!k || raw === "" || isNaN(+raw)) continue;
+    const def = FILTER_FIELDS.find(f => f[0] === k);
+    out.push({ k, label: def[1], op: $("f" + i + "o").value,
+               shown: +raw, v: def[2] === "pct" ? +raw / 100 : +raw });
   }
   return out;
 }
@@ -158,11 +216,14 @@ const fPct = v => typeof v === "number"
 const r2cls = r => r >= 0.8 ? "r2hi" : r >= 0.5 ? "r2mid" : "r2lo";
 
 function render() {
-  const m = selMetric(), minr2 = parseFloat($("minr2").value) || 0;
-  const q = $("q").value.trim().toUpperCase(), sec = $("sector").value;
-  let rows = buildRows().filter(r => r.lr >= minr2);
+  const m = selMetric(), sec = $("sector").value;
+  const filts = activeFilters();
+  let rows = buildRows().filter(r => filts.every(f => {
+    const v = r[f.k];
+    if (typeof v !== "number" || Number.isNaN(v)) return false;
+    return f.op === ">=" ? v >= f.v : v <= f.v;
+  }));
   if (sec) rows = rows.filter(r => r.sector === sec);
-  if (q) rows = rows.filter(r => r.ticker.includes(q) || r.name.toUpperCase().includes(q));
   rows.sort((a, b) => {
     const A = a[sortKey], B = b[sortKey];
     if (typeof A === "string") return sortDir * A.localeCompare(B);
@@ -191,8 +252,12 @@ function render() {
       `<td>${r.n}</td></tr>`;
   }).join("");
   if (window.__sl) window.__sl.paint();
-  $("status").textContent = `${rows.length} companies ranked` +
-    (minr2 > 0 ? ` (fit R² ≥ ${minr2})` : "");
+  $("status").textContent = `${rows.length} companies pass` +
+    (filts.length ? ` ${filts.length} filter level${filts.length > 1 ? "s" : ""}` : " (no filters)") +
+    ` — ranked by ${sortKey === "pg" ? PCT_NAME[m] : sortKey === "lm" ? METRIC_LABEL[m] + " slope" : sortKey}`;
+  $("filtNote").textContent = filts.length
+    ? filts.map(f => `${f.label} ${f.op === ">=" ? "≥" : "≤"} ${f.shown}`).join("  ·  ")
+    : "add filter levels above, then press ⚡ Rank";
   document.querySelectorAll("th").forEach(th => th.onclick = () => {
     const k = th.dataset.k;
     if (k === "rank") return;
@@ -211,20 +276,31 @@ Promise.all([
   $("asof").textContent = d[0]?.date || "?";
   [...new Set(d.map(x => x.sector).filter(Boolean))].sort().forEach(s => {
     const o = document.createElement("option"); o.value = o.textContent = s; $("sector").appendChild(o); });
-  ["minr2", "sector", "q"].forEach(id => $(id).oninput = render);
-  $("metric").onchange = () => { sortKey = selRank(); sortDir = -1; render(); };
-  $("tw").onchange = async () => {
-    $("status").textContent = "Loading trend window…";
+  buildFiltRows();
+  // v1.17.0: NOTHING recomputes while you set things up — the table only
+  // updates when ⚡ Rank is pressed (also immune to stray text injection,
+  // since there is no free-text search box any more).
+  async function run() {
+    $("status").textContent = "Ranking…";
     const w = $("tw").value;
     if (await loadWindow(w)) trWin = w;
+    sortKey = selRank(); sortDir = -1;
     render();
+  }
+  $("runBtn").onclick = run;
+  $("clrBtn").onclick = () => {
+    for (let i = 0; i < NFILT; i++) {
+      $("f" + i + "k").value = i === 0 ? "lr" : "";
+      $("f" + i + "o").value = ">="; $("f" + i + "v").value = "";
+    }
+    $("sector").value = "";
   };
-  render();
+  run();
 })
 .catch(e => { $("status").textContent = "Failed to load data (" + e.message + ")."; });
 </script>
-<script src="chat.js?v=v1.16.3" defer></script>
-<script src="menu.js?v=v1.16.3" defer></script>
-<script src="stocklab.js?v=v1.16.3" defer></script>
+<script src="chat.js?v=v1.17.0" defer></script>
+<script src="menu.js?v=v1.17.0" defer></script>
+<script src="stocklab.js?v=v1.17.0" defer></script>
 </body>
 </html>

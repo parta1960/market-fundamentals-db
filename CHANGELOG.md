@@ -21,6 +21,24 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.17.0 — 2026-08-17
+
+- **Rankings: stackable filter levels + explicit ⚡ Rank button** (user
+  request). Four "Filter level" rows — each a field / ≥-or-≤ / value triple —
+  stack with AND logic on top of the ranking: Fit R², %metric, slope, P/E,
+  P/S, P/FCF, P/B, margin levels, y/y growth rates, share-count change, EPS
+  and price. Companies missing a filtered value are excluded; the active
+  levels are echoed under the button and in the status line.
+- **Nothing recomputes until ⚡ Rank is pressed** — you compose the ranking
+  and all filter levels first, then execute once. "Clear filters" resets all
+  levels.
+- **Search box removed from Rankings** (user request). It doubled as a target
+  for the stray-text injection ("Hello" was silently filtering the table to
+  zero rows); ticker lookup remains available on the screener, and the
+  explicit-run model means no keystroke anywhere can change the ranking.
+- The old standalone "Min R²" box is folded into filter level 1 (pre-selected
+  to Fit R², value blank).
+
 ## v1.16.3 — 2026-08-17
 
 - **Rankings: one "Rank by" selector with %metric first** (user feedback:
