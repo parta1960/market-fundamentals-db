@@ -21,6 +21,22 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.17.2 — 2026-08-18
+
+- **Favorites & portfolios now open a LIST PANEL** (user feedback: tapping
+  them "just jumps to the stock" instead of showing a list). Tapping
+  ★ Favorites or a ▦ portfolio in the ☰ menu opens a panel listing the
+  stocks in it — ticker (links to its charts), company name, latest close,
+  and a per-stock ✕ to remove — with an "Open as screener table (all
+  metrics) →" link at the bottom for the old filtered-table view. Empty
+  lists explain how to add stocks and, when no StockLab password is stored,
+  how cross-device sync works. Implemented in the shared stocklab.js so it
+  behaves identically on the screener, charts and rankings pages.
+- Event-ordering fix discovered by test: the per-stock ✕ must stop
+  propagation, or the browser's between-listener microtask checkpoint lets
+  the rebuilt panel appear just in time for the document-level
+  close-on-outside-click handler to remove it.
+
 ## v1.17.1 — 2026-08-17
 
 - **New chart defaults + 9-chart limit** (user request, marked up on a

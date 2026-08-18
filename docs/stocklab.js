@@ -42,7 +42,28 @@
   #slPortPop .pp input { accent-color:#58a6ff; }
   #slPortPop .pnew { color:#58a6ff; border-top:1px solid #21262d; }
   #slPortPop .phead { padding:4px 14px 8px; color:#6e7681; font-size:11px;
-    border-bottom:1px solid #21262d; }`;
+    border-bottom:1px solid #21262d; }
+  #slListPop { position:fixed; z-index:95; left:50%; top:64px;
+    transform:translateX(-50%); width:min(440px, 94vw); background:#161b22;
+    border:1px solid #30363d; border-radius:12px; color:#e6edf3;
+    box-shadow:0 12px 40px rgba(0,0,0,.7); font-size:13.5px; }
+  #slListPop .lv-head { display:flex; align-items:center; gap:8px;
+    padding:12px 14px; border-bottom:1px solid #21262d; font-weight:600; }
+  #slListPop .lv-head button { margin-left:auto; background:#30363d;
+    color:#e6edf3; border:1px solid #484f58; border-radius:6px;
+    padding:5px 10px; cursor:pointer; }
+  #slListPop .lv-body { max-height:60vh; overflow-y:auto; }
+  #slListPop .lv-row { display:flex; gap:10px; align-items:center;
+    padding:9px 14px; border-bottom:1px solid #21262d; }
+  #slListPop .lv-t { font-weight:700; color:#58a6ff; text-decoration:none;
+    min-width:54px; }
+  #slListPop .lv-n { color:#9aa4b2; flex:1; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  #slListPop .lv-p { font-variant-numeric:tabular-nums; }
+  #slListPop .lv-x { color:#6e7681; cursor:pointer; padding:0 3px; }
+  #slListPop .lv-x:hover { color:#f85149; }
+  #slListPop .lv-foot { padding:10px 14px; border-top:1px solid #21262d; }
+  #slListPop .lv-open { color:#58a6ff; text-decoration:none; font-size:12.5px; }`;
   const st = document.createElement("style"); st.textContent = css;
   document.head.appendChild(st);
 
@@ -149,7 +170,63 @@
     const b = e.target.closest(".slPort");
     if (b) { openPortPop(b); e.stopPropagation(); return; }
     if (pop && !pop.contains(e.target)) closePop();
+    if (listPop && !listPop.contains(e.target) && !e.target.closest("#slMenu"))
+      closeList();
   });
+
+  /* ---------- list viewer (v1.17.2) ----------------------------------
+   * Tapping ★ Favorites or a ▦ portfolio in the ☰ menu opens THIS panel —
+   * an explicit list of the stocks in it (ticker, company, latest close),
+   * each linking to its charts, with per-stock remove and a link to the
+   * filtered screener table for full metrics. */
+  let listPop = null, RATC = null;
+  async function ratioInfo() {
+    if (RATC) return RATC;
+    try {
+      const d = await (await fetch("data/latest_ratios.json")).json();
+      RATC = {}; d.forEach(x => { RATC[x.ticker] = x; });
+    } catch (e) { RATC = {}; }
+    return RATC;
+  }
+  function closeList() { if (listPop) { listPop.remove(); listPop = null; } }
+  async function showList(kind, name) {
+    closeList(); closePop();
+    const tks = kind === "fav" ? favs() : (ports()[name] || []);
+    const info = await ratioInfo();
+    const title = kind === "fav" ? "★ Favorites" : "▦ " + name;
+    const rows = tks.map(t => {
+      const x = info[t] || {};
+      return `<div class="lv-row">
+        <a class="lv-t" href="charts.html?t=${t}" title="open ${t} history charts">${t}</a>
+        <span class="lv-n">${x.name || ""}</span>
+        <span class="lv-p">${typeof x.close === "number" ? "$" + x.close.toFixed(2) : ""}</span>
+        <span class="lv-x" data-t="${t}" title="remove ${t} from this list">✕</span></div>`;
+    }).join("");
+    const empty = `<div style="padding:16px;color:#9aa4b2;">Nothing here yet —
+      tap the ☆ (favorite) or ▦ (portfolio) next to any stock to add it.` +
+      (localStorage.getItem("mfdb_ai_pass") ? "" : `<br><br>Tip: lists sync
+      between your phone and computer once the StockLab password is entered
+      on each device (☰ Menu → AI setup).`) + `</div>`;
+    listPop = document.createElement("div");
+    listPop.id = "slListPop";
+    listPop.innerHTML = `
+      <div class="lv-head">${title} <span style="color:#6e7681">(${tks.length})</span>
+        <button id="lvClose">✕ Close</button></div>
+      <div class="lv-body">${rows || empty}</div>
+      <div class="lv-foot"><a class="lv-open"
+        href="${kind === "fav" ? "index.html?list=fav"
+                               : "index.html?port=" + encodeURIComponent(name)}"
+        title="the screener filtered to just these stocks, with all metrics">
+        Open as screener table (all metrics) →</a></div>`;
+    document.body.appendChild(listPop);
+    listPop.querySelector("#lvClose").onclick = closeList;
+    listPop.querySelectorAll(".lv-x").forEach(x => x.onclick = e => {
+      e.stopPropagation();      // the rebuilt panel must survive this click
+      if (kind === "fav") toggleFav(x.dataset.t);
+      else togglePort(name, x.dataset.t);
+      paint(); showList(kind, name);
+    });
+  }
 
   /* ---------- saved screens ---------- */
   const screens = () => get(LS.screens, {});
@@ -214,5 +291,5 @@
   setTimeout(pull, 800);
 
   window.__sl = { paint, controlsHTML, yahoo, favs, ports, screens,
-                  saveScreen, delScreen, delPort, isFav, touch };
+                  saveScreen, delScreen, delPort, isFav, touch, showList };
 })();
