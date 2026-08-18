@@ -21,6 +21,30 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.19.0 — 2026-08-18
+
+- **Rankings: filtered quantities become columns** — every active filter
+  level (P/E, P/S, margins, …) now shows as its own column in the results.
+- **Rankings: Sector moved to the last column.**
+- **Rankings: 1-year mini charts** of Price, P/E and P/S in every row
+  (quarterly points; green up / red down on the year; label = latest value +
+  1-year change; hover for the quarter-by-quarter numbers). Lazy-loaded only
+  for rows scrolled into view.
+- **Charts: the stock PRICE is always the first chart** when a stock opens,
+  whatever the metric selection or order.
+- **Charts: 🧠 AI Analyst Report** at the end of every stock page — the
+  internal AI acts as a senior analyst: management commentary from the last
+  two quarterly calls it knows (with honesty about knowledge limits),
+  environment & sentiment, a review of this database's financials and price,
+  and a clear BUY / HOLD / SELL verdict in ≤500 words. Uses the existing
+  proxy + StockLab password; reports cached per ticker per data-date.
+- **Charts: numeric summary-tile strip removed** (user request) — the charts
+  themselves are the summary; the Summary button is gone from the stock bar.
+- **Charts: management performance metrics** — ROE (TTM net income ÷ equity)
+  and ROIC (TTM net income ÷ (equity + debt − cash)), derived in the browser
+  from data already shipped, in a new "Management performance" metric group.
+  ROE joins the default charts; chart cap raised 9 → 10.
+
 ## v1.18.0 — 2026-08-18
 
 - **The Rankings screener is now the FRONT PAGE** (index.html): open the site

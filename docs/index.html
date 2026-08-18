@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — Rankings screener</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.18.0"></script>
+<script src="version.js?v=v1.19.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -27,7 +27,9 @@
   .filters input[type=text] { width:160px; }
   .filters select { width:170px; }
   .wrap { overflow:auto; max-height:calc(100vh - 210px); padding:0 24px 8px; }
-  table { border-collapse:separate; border-spacing:0; width:100%; min-width:900px; }
+  table { border-collapse:separate; border-spacing:0; width:100%; min-width:1250px; }
+  td.spk { padding:2px 10px; }
+  .spkbox { display:inline-flex; align-items:center; gap:7px; font-size:11.5px; }
   th, td { padding:6px 10px; text-align:right; white-space:nowrap; }
   th { color:var(--ink2); font-size:11.5px; font-weight:600; cursor:pointer; user-select:none;
        border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg);
@@ -113,8 +115,13 @@
   zero, where a percentage would be noise.
   FILTER LEVELS (v1.17.0) stack with AND logic: a company must pass every
   level (e.g. Fit R² ≥ 0.8 AND P/E ≤ 30 AND gross margin ≥ 40%) before it is
-  ranked; companies missing a filtered value are excluded. Nothing recomputes
-  until ⚡ Rank is pressed. Click any column header to re-sort;
+  ranked; companies missing a filtered value are excluded. Every active filter
+  level also appears as its own COLUMN so the filtered quantities are visible
+  (v1.19.0). Nothing recomputes until ⚡ Rank is pressed. MINI CHARTS
+  (v1.19.0): Price / P/E / P/S over the last 4 quarters (1 year, quarterly
+  points — green up on the year, red down; label = latest value and 1-year
+  change; hover for the quarterly numbers). They load as rows scroll into
+  view. Click any column header to re-sort;
   click a ticker for its history charts. Educational tool, not investment
   advice — <a href="https://github.com/parta1960/market-fundamentals-db">methodology</a>.
 </footer>
@@ -207,6 +214,50 @@ function activeFilters() {
   return out;
 }
 
+/* ---- v1.19.0 (3): 1-year mini charts (price / P/E / P/S) ----------------
+   Quarterly data, so "1 year" = the last 5 quarter-end points. Drawn as tiny
+   inline SVGs, green when up on the year, red when down; label = latest value
+   + 1-year change. History JSONs are fetched lazily (IntersectionObserver)
+   only for rows actually scrolled into view, and cached. */
+const HIST = {};
+const getHist = t => HIST[t] ??=
+  fetch("data/history/" + t + ".json").then(r => r.ok ? r.json() : null).catch(() => null);
+function sparkHTML(dates, vals, money) {
+  const pts = [];
+  vals.forEach((v, i) => { if (typeof v === "number") pts.push([i, v]); });
+  if (pts.length < 2) return '<span style="color:var(--ink3)">n/a</span>';
+  const ys = pts.map(p => p[1]), mn = Math.min(...ys), mx = Math.max(...ys);
+  const span = (mx - mn) || 1, W = 84, H = 24, X = vals.length - 1;
+  const xy = pts.map(([i, v]) =>
+    (i / X * (W - 4) + 2).toFixed(1) + "," + (H - 3 - (v - mn) / span * (H - 6)).toFixed(1));
+  const first = ys[0], last = ys[ys.length - 1];
+  const up = last >= first, col = up ? "var(--pos)" : "var(--neg)";
+  const chg = first > 0 ? (up ? "+" : "−") + Math.abs(100 * (last / first - 1)).toFixed(0) + "%" : "";
+  const fv = v => (money ? "$" : "") + (Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1));
+  const tip = pts.map(([i, v]) => dates[i].slice(0, 7) + ": " + fv(v)).join("  ·  ");
+  return `<span class="spkbox" title="${tip}">` +
+    `<svg width="${W}" height="${H}" style="vertical-align:middle">` +
+    `<polyline fill="none" stroke="${col}" stroke-width="1.6" points="${xy.join(" ")}"/></svg>` +
+    `<span style="color:${col}">${fv(last)} ${chg}</span></span>`;
+}
+async function fillSparks(tr) {
+  const h = await getHist(tr.dataset.t);
+  tr.querySelectorAll("td.spk").forEach(td => {
+    if (!h) { td.textContent = "n/a"; return; }
+    const q = h.quarters.slice(-5), s = (h.series[td.dataset.k] || []).slice(-5);
+    td.innerHTML = sparkHTML(q, s, td.dataset.k === "close");
+  });
+}
+let sparkIO = null;
+function setupSparks() {
+  if (sparkIO) sparkIO.disconnect();
+  sparkIO = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return;
+    sparkIO.unobserve(e.target); fillSparks(e.target);
+  }), { root: document.querySelector(".wrap"), rootMargin: "300px" });
+  document.querySelectorAll("tbody tr[data-t]").forEach(tr => sparkIO.observe(tr));
+}
+
 const fSlope = (v, m) => {
   if (typeof v !== "number") return "–";
   const s = (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(Math.abs(v) < 10 ? 2 : 1);
@@ -231,27 +282,54 @@ function render() {
     return sortDir * (((A ?? -1e18)) - ((B ?? -1e18)));
   });
   const slopeUnit = PCT_METRICS.has(m) ? "pts/yr" : "$/yr";
+  // v1.19.0 (1): every ACTIVE filter level gets its own column, so you can
+  // see the quantities you filtered on (skipping ones already shown).
+  const filtCols = [];
+  for (const f of filts) {
+    if (f.k === "" || ["lr", "pg", "lm"].includes(f.k)) continue;
+    if (filtCols.some(c => c[0] === f.k)) continue;
+    const def = FILTER_FIELDS.find(d => d[0] === f.k);
+    filtCols.push([f.k, def[1], "", def[2]]);
+  }
+  // v1.19.0 (2): Sector moved to the LAST column. (3): 1-year mini charts of
+  // price, P/E and P/S (quarterly points, lazy-loaded as rows scroll in).
   const cols = [
     ["rank", "#", ""], ["ticker", "Ticker", "l"], ["name", "Company", "l"],
-    ["sector", "Sector", "l"],
     ["lm", METRIC_LABEL[m] + " slope " + slopeUnit, ""],
-    ["lr", "Fit R²", ""], ["pg", PCT_NAME[m] + " /yr", ""], ["n", "Quarters", ""],
+    ["lr", "Fit R²", ""], ["pg", PCT_NAME[m] + " /yr", ""],
+    ...filtCols,
+    ["n", "Quarters", ""],
+    ["sp_close", "Price 1y", "spkh"], ["sp_pe", "P/E 1y", "spkh"],
+    ["sp_ps", "P/S 1y", "spkh"],
+    ["sector", "Sector", "l"],
   ];
+  const SPKTIP = ' title="last 4 quarters (1 year) of quarterly values — label is the latest value and the 1-year change; hover a loaded chart for the quarter-by-quarter numbers"';
+  const fNum = v => typeof v === "number"
+    ? (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)) : "–";
   document.querySelector("thead").innerHTML = "<tr>" + cols.map(([k, h, cls]) =>
-    `<th class="${cls}${k === sortKey ? " sorted" : ""}" data-k="${k}">${h}${k === sortKey ? (sortDir < 0 ? " ↓" : " ↑") : ""}</th>`).join("") + "</tr>";
+    `<th class="${cls === "l" ? "l" : ""}${k === sortKey ? " sorted" : ""}" data-k="${k}"${cls === "spkh" ? SPKTIP : ""}>${h}${k === sortKey ? (sortDir < 0 ? " ↓" : " ↑") : ""}</th>`).join("") + "</tr>";
   document.querySelector("tbody").innerHTML = rows.map((r, i) => {
     const tip = ` title="linear fit over ${r.n} quarters — slope ${fSlope(r.lm, m)}/yr; ` +
       `${PCT_NAME[m]} = slope ÷ latest value = ${fPct(r.pg)}/yr; R²=${r.lr}"`;
-    return "<tr>" +
+    const extras = filtCols.map(([k, , , kind]) => {
+      const v = r[k];
+      return `<td>${kind === "pct" ? fPct(v) : fNum(v)}</td>`;
+    }).join("");
+    return `<tr data-t="${r.ticker}">` +
       `<td>${i + 1}</td>` +
       `<td class="l tick"><a style="color:inherit;text-decoration:none" href="charts.html?t=${r.ticker}">${r.ticker}</a> ` +
       (window.__sl ? window.__sl.controlsHTML(r.ticker) : "") + `</td>` +
-      `<td class="l name">${r.name}</td><td class="l">${r.sector}</td>` +
+      `<td class="l name">${r.name}</td>` +
       `<td class="${r.lm >= 0 ? "pos" : "neg"}"${tip}>${fSlope(r.lm, m)}</td>` +
       `<td class="${r2cls(r.lr)}"${tip}>${r.lr.toFixed(2)}</td>` +
       `<td class="${typeof r.pg === "number" ? (r.pg >= 0 ? "pos" : "neg") : ""}"${tip}>${fPct(r.pg)}</td>` +
-      `<td>${r.n}</td></tr>`;
+      extras +
+      `<td>${r.n}</td>` +
+      `<td class="spk" data-k="close">…</td><td class="spk" data-k="pe_ttm">…</td>` +
+      `<td class="spk" data-k="ps_ttm">…</td>` +
+      `<td class="l">${r.sector}</td></tr>`;
   }).join("");
+  setupSparks();
   if (window.__sl) window.__sl.paint();
   $("status").textContent = `${rows.length} companies pass` +
     (filts.length ? ` ${filts.length} filter level${filts.length > 1 ? "s" : ""}` : " (no filters)") +
@@ -261,7 +339,7 @@ function render() {
     : "add filter levels above, then press ⚡ Rank";
   document.querySelectorAll("th").forEach(th => th.onclick = () => {
     const k = th.dataset.k;
-    if (k === "rank") return;
+    if (k === "rank" || k.startsWith("sp_")) return;
     if (sortKey === k) sortDir = -sortDir;
     else { sortKey = k; sortDir = (k === "ticker" || k === "name" || k === "sector") ? 1 : -1; }
     render();
@@ -300,8 +378,8 @@ Promise.all([
 })
 .catch(e => { $("status").textContent = "Failed to load data (" + e.message + ")."; });
 </script>
-<script src="chat.js?v=v1.18.0" defer></script>
-<script src="menu.js?v=v1.18.0" defer></script>
-<script src="stocklab.js?v=v1.18.0" defer></script>
+<script src="chat.js?v=v1.19.0" defer></script>
+<script src="menu.js?v=v1.19.0" defer></script>
+<script src="stocklab.js?v=v1.19.0" defer></script>
 </body>
 </html>

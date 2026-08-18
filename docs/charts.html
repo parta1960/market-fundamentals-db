@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — History Charts</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.18.0"></script>
-<script src="vendor/chart.umd.min.js?v=v1.18.0"></script>
+<script src="version.js?v=v1.19.0"></script>
+<script src="vendor/chart.umd.min.js?v=v1.19.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -64,6 +64,18 @@
   table.dt td:first-child, table.dt th:first-child { text-align:left;
     position:sticky; left:0; background:var(--bg); }
   table.dt th:first-child { z-index:3; }
+  /* v1.19.0 AI analyst report */
+  #aiwrap { margin:18px 24px 6px; padding:14px 18px 16px; max-width:940px;
+    background:var(--surface); border:1px solid var(--border); border-radius:10px; }
+  #aiwrap h3 { margin:0 0 4px; font-size:14.5px; }
+  #aiRepMeta { color:var(--ink3); font-size:11.5px; margin-bottom:8px; }
+  #aiRepOut { font-size:13.5px; line-height:1.55; color:var(--ink);
+    white-space:pre-wrap; }
+  #aiRepOut b { color:var(--accent); }
+  #aiRepBtn { margin-top:10px; background:#1f6feb; border:1px solid #1f6feb;
+    color:#fff; font-weight:600; border-radius:6px; padding:7px 16px;
+    font-size:12.5px; cursor:pointer; }
+  #aiRepBtn:disabled { opacity:.55; cursor:default; }
   footer { color:var(--ink3); font-size:11.5px; padding:8px 24px 26px; max-width:980px; }
   /* v1.15.0 Yahoo-style per-stock section bar + summary strip */
   #stocknav { display:flex; gap:6px; flex-wrap:wrap; padding:6px 24px 2px; }
@@ -73,12 +85,8 @@
   #stocknav .sn:hover { color:var(--ink); border-color:var(--ink3); }
   #stocknav .sn.ext { color:#a58fff; }
   #stocknav .sn.ext:hover { border-color:#a58fff; }
-  #sumwrap { display:none; flex-wrap:wrap; gap:10px; padding:8px 24px 4px; }
-  #sumwrap.open { display:flex; }
-  .sumtile { background:var(--surface); border:1px solid var(--border);
-    border-radius:8px; padding:8px 13px; min-width:118px; }
-  .sumtile .v { font-size:16px; font-weight:600; font-variant-numeric:tabular-nums; }
-  .sumtile .k { font-size:10.5px; color:var(--ink2); margin-top:1px; }
+  /* (v1.19.0: the numeric summary-tile strip was removed on user request —
+     the charts themselves are the summary now) */
 </style>
 </head>
 <body>
@@ -109,16 +117,27 @@
 </div>
 
 <details class="mpanel" open><summary style="cursor:pointer; color:var(--ink2); font-size:12.5px;">
-  Metrics (up to 9 charted — picking a 10th replaces the oldest)</summary>
+  Metrics (up to 10 charted — picking an 11th replaces the oldest)</summary>
   <div class="groups" id="mgroups"></div>
 </details>
 
 <div id="tname"></div>
 <div id="stocknav"></div>
-<div id="sumwrap"></div>
 <div class="charts" id="charts"></div>
 <div id="dtwrap"></div>
 <div id="status">Loading…</div>
+
+<!-- v1.19.0 (4): AI analyst report — the internal AI, acting as a senior
+     ("super") analyst, reviews the last two quarters of management
+     commentary it knows about, the business environment & sentiment, and the
+     financial/price data from THIS database, then gives a clear
+     buy / hold / sell call. ≤500 words. Cached per ticker per data-date. -->
+<div id="aiwrap">
+  <h3>🧠 AI Analyst Report — <span id="aiRepT"></span></h3>
+  <div id="aiRepMeta"></div>
+  <div id="aiRepOut"></div>
+  <button id="aiRepBtn">Generate report</button>
+</div>
 
 <footer>
   Valuation ratios pair each quarter's actual close with same-date share counts
@@ -149,8 +168,11 @@ let MAN = null, CACHE = {}, charts = [], lastQ = 0;
 
 // v1.17.1 defaults chosen by the user: the three per-share series plus the
 // full valuation block. Everything else starts unchecked.
-const DEFAULT_METRICS = ["eps_ttm", "revenue_ps", "fcf_ps", "close",
-                         "mktcap", "pe_ttm", "ps_ttm", "pfcf_ttm", "pb"];
+// v1.19.0: PRICE is always the FIRST chart when a stock opens, and ROE
+// (management performance) joins the defaults — chart cap raised to 10.
+const MAXCH = 10;
+const DEFAULT_METRICS = ["close", "eps_ttm", "revenue_ps", "fcf_ps",
+                         "mktcap", "pe_ttm", "ps_ttm", "pfcf_ttm", "pb", "roe"];
 const state = { t: "AAPL", metrics: DEFAULT_METRICS.slice(), per: 0, cmp: [] };
 
 function fromURL() {
@@ -187,7 +209,29 @@ async function getHist(t) {
   if (CACHE[t]) return CACHE[t];
   const r = await fetch("data/history/" + t + ".json");
   if (!r.ok) throw new Error(t + ": " + r.status);
-  return (CACHE[t] = await r.json());
+  const h = await r.json();
+  addDerived(h);
+  return (CACHE[t] = h);
+}
+// v1.19.0: management-performance series, DERIVED in the browser from data
+// already in each history file (no pipeline change needed):
+//   ROE  = TTM net income ÷ shareholders' equity
+//   ROIC = TTM net income ÷ (equity + total debt − cash)   [invested capital]
+// Null when the denominator is missing or ≤ 0 (e.g. negative equity), where
+// the ratio would be meaningless.
+function addDerived(h) {
+  const s = h.series || (h.series = {});
+  const ni = s.net_income_ttm || [], eq = s.equity || [],
+        td = s.total_debt || [], ca = s.cash || [];
+  const div = (a, b) => (typeof a === "number" && typeof b === "number" && b > 0)
+    ? a / b : null;
+  s.roe = h.quarters.map((_, i) => div(ni[i], eq[i]));
+  s.roic = h.quarters.map((_, i) => {
+    const ic = typeof eq[i] === "number"
+      ? eq[i] + (typeof td[i] === "number" ? td[i] : 0)
+              - (typeof ca[i] === "number" ? ca[i] : 0) : null;
+    return div(ni[i], ic);
+  });
 }
 
 function metricInfo(k) { return MAN.metrics.find(m => m.k === k) || {k, label:k, unit:"x"}; }
@@ -204,7 +248,6 @@ function updateStockNav(main) {
   if (!snBuilt) {
     snBuilt = true;
     nav.innerHTML = `
-      <button class="sn" id="snSum" title="key numbers for this company from the StockLab database">Summary</button>
       <button class="sn" id="snChart" title="jump to the charts">Chart</button>
       <button class="sn" id="snStats" title="chart the valuation ratios">Statistics</button>
       <button class="sn" id="snFin" title="chart the income / cash-flow lines">Financials</button>
@@ -213,8 +256,6 @@ function updateStockNav(main) {
        ["options", "Options"], ["holders", "Holders"], ["community", "Community"]]
       .map(([p, l]) => `<a class="sn ext" id="snY_${p}" target="_blank" rel="noopener"
         title="open the ${l} tab on Yahoo Finance">${l} ↗</a>`).join("");
-    $("snSum").onclick = () => { const w = $("sumwrap");
-      w.classList.toggle("open"); if (w.classList.contains("open")) fillSummary(); };
     $("snChart").onclick = () => $("charts").scrollIntoView({ behavior: "smooth" });
     const preset = m => { if (window.__app) window.__app.apply({ m }); };
     $("snStats").onclick = () => preset(["pe_ttm", "ps_ttm", "pfcf_ttm", "pb"]);
@@ -229,25 +270,8 @@ function updateStockNav(main) {
   for (const p of ["news", "profile", "analysis", "options", "holders", "community"])
     $("snY_" + p).href = "https://finance.yahoo.com/quote/" +
       encodeURIComponent(main.ticker) + "/" + p;
-  if ($("sumwrap").classList.contains("open")) fillSummary();
 }
-function fillSummary() {
-  const h = snHist; if (!h) return;
-  const last = k => { const s = h.series[k] || [];
-    for (let i = s.length - 1; i >= 0; i--) if (s[i] !== null && s[i] !== undefined) return s[i];
-    return null; };
-  const t = (v, k, u) => `<div class="sumtile"><div class="v">${fmt(v, u)}</div><div class="k">${k}</div></div>`;
-  $("sumwrap").innerHTML =
-    t(last("close"), "close (q-end)", "ps") + t(last("mktcap"), "market cap", "usd") +
-    t(last("pe_ttm"), "P/E (TTM)", "x") + t(last("ps_ttm"), "P/S (TTM)", "x") +
-    t(last("pfcf_ttm"), "P/FCF (TTM)", "x") + t(last("pb"), "P/B", "x") +
-    t(last("revenue_ttm"), "revenue (TTM)", "usd") + t(last("eps_ttm"), "EPS (TTM)", "ps") +
-    t(last("fcf_ttm"), "FCF (TTM)", "usd") + t(last("gross_margin"), "gross margin", "pct") +
-    t(last("op_margin"), "op margin", "pct") + t(last("net_margin"), "net margin", "pct") +
-    t(last("shares"), "shares out", "cnt") +
-    `<div class="sumtile"><div class="v">${(h.splits || []).length}</div><div class="k">stock splits on record</div></div>` +
-    `<div class="sumtile"><div class="v">${(h.breaks || []).length}</div><div class="k">structural breaks</div></div>`;
-}
+// (v1.19.0: fillSummary and the tile strip removed on user request)
 
 // ---- stock-split markers (v1.5.0) ----------------------------------------
 // The exporter ships doc.splits = [{d:"2014-06-09", r:7}, ...]. On every
@@ -470,6 +494,7 @@ async function draw() {
   if (window.__sl) window.__sl.paint($("tname"));
   updateStockNav(main);
   lastQ = main.quarters[main.quarters.length - 1];
+  aiRepShow(main);                                   // v1.19.0 analyst report
 
   const compare = state.cmp.length > 0 && state.metrics.length === 1;
   const tableCols = [];
@@ -528,7 +553,13 @@ async function draw() {
     ds.forEach(d => tableCols.push({ head: d.label, data: d.data, unit: mi.unit }));
   } else {
     labels = sliceN(main.quarters, state.per);
-    for (const k of state.metrics.slice(0, 9)) {
+    // v1.19.0: stock PRICE always renders as the first chart, whatever order
+    // the metrics were picked in (and even if price was unticked). When that
+    // forced slot would overflow the cap, the OLDEST other pick is dropped —
+    // never the one just clicked.
+    const others = state.metrics.filter(k => k !== "close");
+    const mets = ["close", ...others.slice(-(MAXCH - 1))];
+    for (const k of mets) {
       const mi = metricInfo(k);
       const data = sliceN(main.series[k] || main.quarters.map(() => null), state.per);
       const marks = splitMarks(main, labels);
@@ -561,6 +592,106 @@ async function draw() {
     : bits.join(" &nbsp;·&nbsp; ");
 }
 
+/* ---- v1.19.0 (4): AI analyst report --------------------------------------
+ * The internal AI acts as a senior analyst: reviews the last two quarters of
+ * management commentary it knows about, the wider environment & sentiment,
+ * and the quarterly financial/price data from THIS database, then gives a
+ * clear buy/hold/sell call in ≤500 words. Uses the same proxy + StockLab
+ * password as the chat assistant. Reports are cached per ticker per
+ * data-date so a repeat visit is free & instant. */
+const AIREP_PROXY = "https://stocklab-ai-proxy.netlify.app/.netlify/functions/ai";
+let aiRepMain = null;
+function aiRepDigest(h) {
+  const N = 8, q = h.quarters.slice(-N);
+  const pick = k => (h.series[k] || []).slice(-N).map(v =>
+    typeof v === "number" ? +(+v).toPrecision(5) : null);
+  return { ticker: h.ticker, name: h.name, sector: h.sector, quarters: q,
+    close: pick("close"), pe_ttm: pick("pe_ttm"), ps_ttm: pick("ps_ttm"),
+    pfcf_ttm: pick("pfcf_ttm"), pb: pick("pb"), eps_ttm: pick("eps_ttm"),
+    revenue_ttm: pick("revenue_ttm"), net_income_ttm: pick("net_income_ttm"),
+    fcf_ttm: pick("fcf_ttm"), gross_margin: pick("gross_margin"),
+    op_margin: pick("op_margin"), shares: pick("shares"), mktcap: pick("mktcap") };
+}
+const aiRepEsc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const aiRepMd = s => aiRepEsc(s.trim())
+  .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+  .replace(/^#+\s*(.+)$/gm, "<b>$1</b>");
+function aiRepShow(main) {
+  aiRepMain = main;
+  $("aiRepT").textContent = main.ticker + (main.name ? " — " + main.name : "");
+  let c = null;
+  try { c = JSON.parse(localStorage.getItem("mfdb_ai_rep_" + main.ticker)); } catch (e) {}
+  if (c && c.asof === lastQ && c.text) {
+    $("aiRepOut").innerHTML = aiRepMd(c.text);
+    $("aiRepMeta").textContent = "generated " + new Date(c.ts).toLocaleDateString() +
+      " · " + (c.prov || "") + (c.model ? " · " + c.model : "") +
+      " · data through " + c.asof + " · AI-written, verify before acting";
+    $("aiRepBtn").textContent = "Regenerate report";
+  } else {
+    $("aiRepOut").innerHTML = "";
+    $("aiRepMeta").textContent = "No report yet for this ticker on the current data. " +
+      "The AI reviews recent management commentary it knows, the business " +
+      "environment & sentiment, and this database's financials, then gives a " +
+      "buy / hold / sell view (≤500 words).";
+    $("aiRepBtn").textContent = "Generate report";
+  }
+  $("aiRepBtn").disabled = false;
+}
+async function aiRepRun() {
+  const main = aiRepMain; if (!main) return;
+  const pass = localStorage.getItem("mfdb_ai_pass") || "";
+  if (!pass) {
+    alert("The AI needs the StockLab password once on this device: ☰ Menu → AI setup.");
+    if (window.__ai) window.__ai.setup();
+    return;
+  }
+  const prov = localStorage.getItem("mfdb_ai_prov") || "claude";
+  // model: the one picked in the chat UI, else a known-good builtin per
+  // provider (an empty model = 502 from the proxy; provider model LISTS can
+  // contain deprecated entries — e.g. Gemini still lists 2.5 models that its
+  // chat endpoint rejects — so no blind list[0] here).
+  const AIREP_FALLBACK = { claude: "claude-fable-5", gemini: "gemini-3.1-pro-preview",
+                           deepseek: "deepseek-v4-pro", kimi: "kimi-k3" };
+  const model = (JSON.parse(localStorage.getItem("mfdb_ai_model_choice") || "{}")[prov])
+                || AIREP_FALLBACK[prov] || "";
+  const btn = $("aiRepBtn");
+  btn.disabled = true; btn.textContent = "Writing…";
+  $("aiRepMeta").textContent = "Asking the AI (" + prov + ") — usually 10–30 seconds…";
+  const sys = "You are a senior buy-side equity analyst writing a concise internal " +
+    "note. HARD LIMIT: 500 words. Structure, with short **bold** headers: " +
+    "1) **Management commentary** — key messages, opportunities and risks from " +
+    "the company's last two quarterly earnings presentations/calls that you " +
+    "know of. Name the fiscal quarters you are referencing; if your knowledge " +
+    "may not include the most recent call, say so in one clause — never invent " +
+    "specifics. 2) **Environment & sentiment** — the company's current business " +
+    "environment and prevailing market sentiment toward the stock. " +
+    "3) **Financials & price** — review the quarterly TTM data provided " +
+    "(growth, margins, valuation multiples, price action). " +
+    "4) **Verdict** — one clear BUY, HOLD or SELL, a 2–3 sentence rationale, " +
+    "and the single development that would change your mind. Plain text, no " +
+    "tables, no disclaimers.";
+  const user = "Company: " + main.ticker + " (" + (main.name || "") + ", " +
+    (main.sector || "") + ").\nQuarterly data, oldest→newest, from the " +
+    "StockLab fundamentals database (TTM where named _ttm; margins as " +
+    "fractions):\n" + JSON.stringify(aiRepDigest(main));
+  try {
+    const r = await fetch(AIREP_PROXY, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-stocklab-pass": pass },
+      body: JSON.stringify({ prov, op: "chat", model, system: sys,
+        messages: [{ role: "user", content: user }] }) });
+    const j = await r.json();
+    if (!r.ok || !j.text) throw new Error(j.error || ("HTTP " + r.status));
+    localStorage.setItem("mfdb_ai_rep_" + main.ticker, JSON.stringify(
+      { asof: lastQ, ts: Date.now(), prov, model: j.model || model, text: j.text }));
+    aiRepShow(main);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = "Generate report";
+    $("aiRepMeta").textContent = "Failed: " + e.message +
+      " — check ☰ Menu → AI setup (provider needs credits) and try again.";
+  }
+}
+
 function buildMetricPanel() {
   const groups = {};
   MAN.metrics.forEach(m => (groups[m.group] = groups[m.group] || []).push(m));
@@ -572,7 +703,7 @@ function buildMetricPanel() {
   $("mgroups").querySelectorAll("input").forEach(cb => cb.onchange = () => {
     if (cb.checked) { if (!selOrder.includes(cb.value)) selOrder.push(cb.value); }
     else selOrder = selOrder.filter(v => v !== cb.value);
-    while (selOrder.length > 9) {
+    while (selOrder.length > MAXCH) {
       const drop = selOrder.shift();
       const el = [...$("mgroups").querySelectorAll("input")].find(x => x.value === drop);
       if (el) el.checked = false;
@@ -584,6 +715,14 @@ function buildMetricPanel() {
 
 fetch("data/history/manifest.json").then(r => r.json()).then(m => {
   MAN = m;
+  // v1.19.0: management-performance metrics, derived client-side (addDerived)
+  // — added to the catalog here so they appear in the Metrics panel.
+  if (!MAN.metrics.some(x => x.k === "roe"))
+    MAN.metrics.push(
+      { k: "roe", label: "ROE (TTM net income ÷ equity)", unit: "pct",
+        group: "Management performance" },
+      { k: "roic", label: "ROIC (TTM net income ÷ invested capital)", unit: "pct",
+        group: "Management performance" });
   $("asof").textContent = m.as_of;
   m.tickers.forEach(x => {
     const o = document.createElement("option");
@@ -604,13 +743,14 @@ fetch("data/history/manifest.json").then(r => r.json()).then(m => {
   $("log").onchange = draw;
   $("tbl").onchange = draw;
   $("pb").onchange = draw;
+  $("aiRepBtn").onclick = aiRepRun;
   buildMetricPanel();
   // bridge for the AI assistant (chat.js)
   window.__app = {
     state: () => state, MAN: () => MAN, getHist,
     apply(cmd) {
       if (cmd.t) { state.t = String(cmd.t).toUpperCase(); $("tick").value = state.t; }
-      if (Array.isArray(cmd.m) && cmd.m.length) state.metrics = cmd.m.slice(0, 9);
+      if (Array.isArray(cmd.m) && cmd.m.length) state.metrics = cmd.m.slice(0, MAXCH);
       if (cmd.p !== undefined) { state.per = +cmd.p || 0;
         document.querySelectorAll("[data-p]").forEach(x =>
           x.classList.toggle("on", +x.dataset.p === state.per)); }
@@ -624,8 +764,8 @@ fetch("data/history/manifest.json").then(r => r.json()).then(m => {
 }).catch(e => { $("status").textContent =
   "Failed to load manifest (" + e.message + "). The first daily run after deploy populates it."; });
 </script>
-<script src="chat.js?v=v1.18.0" defer></script>
-<script src="menu.js?v=v1.18.0" defer></script>
-<script src="stocklab.js?v=v1.18.0" defer></script>
+<script src="chat.js?v=v1.19.0" defer></script>
+<script src="menu.js?v=v1.19.0" defer></script>
+<script src="stocklab.js?v=v1.19.0" defer></script>
 </body>
 </html>
