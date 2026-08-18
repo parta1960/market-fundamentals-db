@@ -21,6 +21,12 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.19.1 — 2026-08-18
+
+- **☰ menu: portfolios grouped under one "Portfolios" row** (user request) —
+  tap it to expand/collapse the list of portfolio names (with counts and ✕
+  delete), instead of every portfolio being its own top-level menu item.
+
 ## v1.19.0 — 2026-08-18
 
 - **Rankings: filtered quantities become columns** — every active filter

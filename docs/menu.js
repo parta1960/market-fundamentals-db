@@ -26,6 +26,8 @@
   #slMenu .mdel { margin-left:auto; color:#6e7681; cursor:pointer;
     padding:0 2px; font-size:12px; }
   #slMenu .mdel:hover { color:#f85149; }
+  #slMenu .mi.sub { padding-left:41px; font-size:13px; background:#131820; }
+  #slMenu .mtog { margin-left:auto; color:#6e7681; font-size:11px; }
   #slMenu .mhead { padding:10px 14px; color:#6e7681; font-size:11.5px;
     border-bottom:1px solid #21262d; }`;
   const st = document.createElement("style"); st.textContent = css;
@@ -83,24 +85,39 @@
   const $ = id => document.getElementById(id);
 
   // v1.15.0: favorites, portfolios and saved screens — rebuilt on every open
+  // v1.19.1: individual portfolios live UNDER one "Portfolios" row that
+  // expands/collapses (user request) instead of each being a top-level item.
+  let portsOpen = false;
   function fillDyn() {
     const dyn = $("slMenuDyn");
     if (!window.__sl) { dyn.innerHTML = ""; return; }
     const favN = window.__sl.favs().length;
     const ports = window.__sl.ports(), screens = window.__sl.screens();
+    const pNames = Object.keys(ports).sort();
     // v1.17.3: Favorites / portfolios open a clean LIST VIEW (the stock-list
     // page in list mode — just the stocks, none of the screening clutter).
     // v1.18.0: that page moved to screener.html (index.html = Rankings now).
     let h = `<a class="mi" href="screener.html?list=fav">${IC.star}Favorites` +
             ` <span class="mcount">(${favN})</span></a>`;
-    for (const n of Object.keys(ports).sort())
-      h += `<a class="mi" href="screener.html?port=${encodeURIComponent(n)}">${IC.grid}${n}` +
-           ` <span class="mcount">(${ports[n].length})</span>` +
-           `<span class="mdel" data-kind="port" data-n="${n}" title="delete this portfolio">✕</span></a>`;
+    if (pNames.length) {
+      h += `<button class="mi" id="slPortsTog">${IC.grid}Portfolios` +
+           ` <span class="mcount">(${pNames.length})</span>` +
+           `<span class="mtog">${portsOpen ? "▾" : "▸"}</span></button>`;
+      if (portsOpen)
+        for (const n of pNames)
+          h += `<a class="mi sub" href="screener.html?port=${encodeURIComponent(n)}">${n}` +
+               ` <span class="mcount">(${ports[n].length})</span>` +
+               `<span class="mdel" data-kind="port" data-n="${n}" title="delete this portfolio">✕</span></a>`;
+    }
     for (const n of Object.keys(screens).sort())
       h += `<a class="mi" href="screener.html?screen=${encodeURIComponent(n)}">${IC.save}${n}` +
            `<span class="mdel" data-kind="screen" data-n="${n}" title="delete this saved screen">✕</span></a>`;
     dyn.innerHTML = h;
+    const tog = $("slPortsTog");
+    if (tog) tog.onclick = e => {
+      e.preventDefault(); e.stopPropagation();   // rebuild must not close the menu
+      portsOpen = !portsOpen; fillDyn();
+    };
     dyn.querySelectorAll(".mdel").forEach(x => x.onclick = e => {
       e.preventDefault(); e.stopPropagation();
       if (!confirm(`Delete ${x.dataset.kind === "port" ? "portfolio" : "saved screen"} "${x.dataset.n}"?`)) return;
