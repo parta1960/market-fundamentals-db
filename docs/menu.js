@@ -88,25 +88,18 @@
     if (!window.__sl) { dyn.innerHTML = ""; return; }
     const favN = window.__sl.favs().length;
     const ports = window.__sl.ports(), screens = window.__sl.screens();
-    // v1.17.2: Favorites / portfolios open a LIST PANEL of their stocks
-    // (tap a ticker for its charts); saved screens still open the screener.
-    let h = `<button class="mi" data-view="fav">${IC.star}Favorites` +
-            ` <span class="mcount">(${favN})</span></button>`;
+    // v1.17.3: Favorites / portfolios open a clean LIST VIEW (the screener
+    // page in list mode — just the stocks, none of the screening clutter).
+    let h = `<a class="mi" href="index.html?list=fav">${IC.star}Favorites` +
+            ` <span class="mcount">(${favN})</span></a>`;
     for (const n of Object.keys(ports).sort())
-      h += `<button class="mi" data-view="port" data-n="${n}">${IC.grid}${n}` +
+      h += `<a class="mi" href="index.html?port=${encodeURIComponent(n)}">${IC.grid}${n}` +
            ` <span class="mcount">(${ports[n].length})</span>` +
-           `<span class="mdel" data-kind="port" data-n="${n}" title="delete this portfolio">✕</span></button>`;
+           `<span class="mdel" data-kind="port" data-n="${n}" title="delete this portfolio">✕</span></a>`;
     for (const n of Object.keys(screens).sort())
       h += `<a class="mi" href="index.html?screen=${encodeURIComponent(n)}">${IC.save}${n}` +
            `<span class="mdel" data-kind="screen" data-n="${n}" title="delete this saved screen">✕</span></a>`;
     dyn.innerHTML = h;
-    dyn.querySelectorAll("[data-view]").forEach(b => b.onclick = e => {
-      if (e.target.classList.contains("mdel")) return;
-      e.stopPropagation();
-      menu.classList.remove("open");
-      if (window.__sl && window.__sl.showList)
-        window.__sl.showList(b.dataset.view, b.dataset.n);
-    });
     dyn.querySelectorAll(".mdel").forEach(x => x.onclick = e => {
       e.preventDefault(); e.stopPropagation();
       if (!confirm(`Delete ${x.dataset.kind === "port" ? "portfolio" : "saved screen"} "${x.dataset.n}"?`)) return;

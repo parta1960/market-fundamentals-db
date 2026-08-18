@@ -21,6 +21,18 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.17.3 — 2026-08-18
+
+- **Favorites / portfolio views are now a clean, list-only page** (user
+  feedback: no popup, and nothing on screen that isn't useful for viewing a
+  list). The v1.17.2 popup panel is removed entirely; tapping ★ Favorites or
+  a ▦ portfolio in the ☰ menu opens the screener in a new "list mode" that
+  shows ONLY the title, a "← full screener" link, and the stock table — the
+  stat tiles, search/sector/window controls, presets, criteria boxes, help
+  text and footer are all hidden. Status line reduces to "N stocks". The
+  full-metrics table (scrollable columns, ☆/▦/Y! per stock, sortable
+  headers) is unchanged.
+
 ## v1.17.2 — 2026-08-18
 
 - **Favorites & portfolios now open a LIST PANEL** (user feedback: tapping

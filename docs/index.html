@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — S&P 500 + Nasdaq-100 fundamentals</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.17.2"></script>
+<script src="version.js?v=v1.17.3"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -66,6 +66,15 @@
   footer { color:var(--ink3); font-size:11.5px; padding:10px 24px 26px; max-width:980px; }
   footer a { color:var(--accent); text-decoration:none; }
   #status { padding:24px; color:var(--ink2); }
+  /* v1.17.3 list mode — Favorites / portfolio views show ONLY the stocks:
+     every screening control is hidden. */
+  body.listmode .tiles, body.listmode .filters, body.listmode .crit,
+  body.listmode .crithelp, body.listmode footer { display:none; }
+  body.listmode .wrap { max-height:calc(100vh - 150px); }
+  #listbar { display:none; padding:14px 24px 6px; align-items:center; gap:14px; }
+  body.listmode #listbar { display:flex; }
+  #listbar .lb-t { font-size:17px; font-weight:600; }
+  #listbar a { color:var(--accent); text-decoration:none; font-size:12.5px; }
 </style>
 </head>
 <body>
@@ -104,6 +113,9 @@
   <code>shares shrinking</code> · <code>gross margin at least 40</code>.
   Wording the built-in parser doesn't recognise is sent to the AI to translate
   (needs the StockLab password once: ☰ Menu → AI setup).</div>
+
+<div id="listbar"><span class="lb-t" id="lbTitle"></span>
+  <a href="index.html">← full screener</a></div>
 
 <div class="wrap"><table id="t"><thead></thead><tbody></tbody></table></div>
 <div id="status">Loading data…</div>
@@ -420,8 +432,10 @@ function render() {
     }
     return `<td class="${cls}"${tip}>${cell}</td>`; }).join("") + "</tr>").join("");
   if (window.__sl) window.__sl.paint($("t"));
-  $("status").textContent = `${r.length} of ${rows.length} companies` +
-    (SLBANNER ? ` · showing ${SLBANNER} — Clear all returns to the full list` : "");
+  $("status").textContent = SLFILTER
+    ? `${r.length} stock${r.length === 1 ? "" : "s"}`
+    : `${r.length} of ${rows.length} companies` +
+      (SLBANNER ? ` · showing ${SLBANNER}` : "");
   document.querySelectorAll("th").forEach(th => th.onclick = () => {
     const k = th.dataset.k;
     if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = k === "ticker" || k === "name" || k === "sector" ? 1 : -1; }
@@ -462,7 +476,12 @@ function applyURLViews() {
   } else if (u.get("port")) {
     const n = u.get("port");
     SLFILTER = new Set((g("mfdb_ports", {})[n]) || []); SLBANNER = "▦ " + n;
-  } else if (u.get("screen")) {
+  }
+  if (SLFILTER) {                       // v1.17.3: clean list-only view
+    document.body.classList.add("listmode");
+    $("lbTitle").textContent = SLBANNER;
+  }
+  if (u.get("screen")) {
     const n = u.get("screen"), s = g("mfdb_screens", {})[n];
     if (s) {
       SLBANNER = "💾 " + n;
@@ -519,8 +538,8 @@ Promise.all([
 })
 .catch(e => { $("status").textContent = "Failed to load data/latest_ratios.json (" + e.message + "). The first daily run after this page was deployed populates it."; });
 </script>
-<script src="chat.js?v=v1.17.2" defer></script>
-<script src="menu.js?v=v1.17.2" defer></script>
-<script src="stocklab.js?v=v1.17.2" defer></script>
+<script src="chat.js?v=v1.17.3" defer></script>
+<script src="menu.js?v=v1.17.3" defer></script>
+<script src="stocklab.js?v=v1.17.3" defer></script>
 </body>
 </html>
