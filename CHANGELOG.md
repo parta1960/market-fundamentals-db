@@ -21,6 +21,20 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.18.0 — 2026-08-18
+
+- **The Rankings screener is now the FRONT PAGE** (index.html): open the site
+  and you land on Rank-by %EPS, the stackable filter levels and ⚡ Rank.
+- **The full stock-list screener moved to its own page**, `screener.html`
+  ("Stock List" in the ☰ menu) — tiles, search, sector, free-text criteria,
+  presets and saved screens all live there now, exactly as before.
+- Favorites / portfolio list views and saved screens open on the stock-list
+  page (`screener.html?list=fav`, `?port=…`, `?screen=…`).
+- `rankings.html` is kept as a redirect stub so old bookmarks still work
+  (query string preserved).
+- Cross-links updated everywhere (menu order: Rankings (home) · Stock List ·
+  History Charts; page headers link to each other).
+
 ## v1.17.3 — 2026-08-18
 
 - **Favorites / portfolio views are now a clean, list-only page** (user

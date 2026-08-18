@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>StockLab — S&P 500 + Nasdaq-100 fundamentals</title>
+<title>StockLab — Rankings screener</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.17.3"></script>
+<script src="version.js?v=v1.18.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -18,38 +18,16 @@
   header { padding:20px 24px 8px; }
   h1 { font-size:19px; margin:0 0 2px; font-weight:600; }
   .sub { color:var(--ink2); font-size:12.5px; }
-  .tiles { display:flex; gap:12px; flex-wrap:wrap; padding:14px 24px 4px; }
-  .tile { background:var(--surface); border:1px solid var(--border); border-radius:8px;
-          padding:10px 16px; min-width:130px; }
-  .tile .v { font-size:20px; font-weight:600; }
-  .tile .k { font-size:11.5px; color:var(--ink2); margin-top:1px; }
+  .sub a { color:var(--accent); text-decoration:none; }
   .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:end; padding:12px 24px; }
   .filters label { display:flex; flex-direction:column; gap:3px; font-size:11.5px; color:var(--ink2); }
   .filters input, .filters select {
     background:var(--surface); border:1px solid var(--border); color:var(--ink);
-    border-radius:6px; padding:6px 8px; font-size:13px; width:110px; }
-  .filters input[type=text] { width:170px; }
-  .filters button { background:var(--surface); color:var(--ink2); border:1px solid var(--border);
-    border-radius:6px; padding:7px 11px; font-size:12.5px; cursor:pointer; }
-  .filters button:hover { color:var(--ink); border-color:var(--ink3); }
-  .filters button.preset { color:var(--accent); }
-  /* v1.11.0 free-text criteria boxes */
-  .crit { display:flex; gap:10px; flex-wrap:wrap; padding:0 24px 4px; }
-  .cbox { display:flex; flex-direction:column; gap:2px; width:212px; }
-  .cbox input { background:var(--surface); border:1px solid var(--border);
-    color:var(--ink); border-radius:6px; padding:7px 9px; font-size:13px; width:100%; }
-  .cbox input::placeholder { color:var(--ink3); }
-  .cbox input.ok { border-color:#2ea043; }
-  .cbox input.bad { border-color:#f85149; }
-  .cbox .tag { font-size:10.5px; color:var(--ink3); min-height:13px;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .cbox .tag.ok { color:#3fb950; }
-  .cbox .tag.bad { color:#ffb3ad; }
-  .crithelp { padding:2px 24px 10px; color:var(--ink3); font-size:11.5px; }
-  .crithelp code { background:var(--surface); border:1px solid var(--border);
-    border-radius:4px; padding:1px 5px; color:var(--ink2); }
-  .wrap { overflow:auto; max-height:calc(100vh - 230px); padding:0 24px 8px; }
-  table { border-collapse:separate; border-spacing:0; width:100%; min-width:1080px; }
+    border-radius:6px; padding:6px 8px; font-size:13px; width:120px; }
+  .filters input[type=text] { width:160px; }
+  .filters select { width:170px; }
+  .wrap { overflow:auto; max-height:calc(100vh - 210px); padding:0 24px 8px; }
+  table { border-collapse:separate; border-spacing:0; width:100%; min-width:900px; }
   th, td { padding:6px 10px; text-align:right; white-space:nowrap; }
   th { color:var(--ink2); font-size:11.5px; font-weight:600; cursor:pointer; user-select:none;
        border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg);
@@ -60,447 +38,234 @@
   th.sorted { color:var(--accent); }
   td { border-bottom:1px solid #21262d; font-variant-numeric:tabular-nums; }
   td.l, th.l { text-align:left; }
-  td.name { color:var(--ink2); max-width:210px; overflow:hidden; text-overflow:ellipsis; }
+  td.name { color:var(--ink2); max-width:220px; overflow:hidden; text-overflow:ellipsis; }
   td.pos { color:var(--pos); }  td.neg { color:var(--neg); }
   .tick { font-weight:600; }
+  .r2hi { color:var(--pos); }          /* trustworthy fit */
+  .r2mid { color:#e3b341; }            /* so-so fit */
+  .r2lo { color:var(--ink3); }         /* slope not meaningful */
+  #status { padding:16px 24px; color:var(--ink2); }
   footer { color:var(--ink3); font-size:11.5px; padding:10px 24px 26px; max-width:980px; }
   footer a { color:var(--accent); text-decoration:none; }
-  #status { padding:24px; color:var(--ink2); }
-  /* v1.17.3 list mode — Favorites / portfolio views show ONLY the stocks:
-     every screening control is hidden. */
-  body.listmode .tiles, body.listmode .filters, body.listmode .crit,
-  body.listmode .crithelp, body.listmode footer { display:none; }
-  body.listmode .wrap { max-height:calc(100vh - 150px); }
-  #listbar { display:none; padding:14px 24px 6px; align-items:center; gap:14px; }
-  body.listmode #listbar { display:flex; }
-  #listbar .lb-t { font-size:17px; font-weight:600; }
-  #listbar a { color:var(--accent); text-decoration:none; font-size:12.5px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>StockLab</h1>
-  <div class="sub"><span class="sl-ver"></span> · S&amp;P 500 + Nasdaq-100 screener · TTM ratios from
-    <a style="color:var(--accent);text-decoration:none"
-       href="https://github.com/parta1960/market-fundamentals-db">market-fundamentals-db</a>
-    · data as of <span id="asof">…</span> · updates weekdays after US close ·
-    <a style="color:var(--accent);text-decoration:none" href="charts.html">📈 History charts</a> ·
-    <a style="color:var(--accent);text-decoration:none" href="rankings.html">🏆 Rankings</a></div>
+  <h1>StockLab · Rankings</h1>
+  <div class="sub"><span class="sl-ver"></span> ·
+    S&amp;P 500 + Nasdaq-100 · rank every stock by %EPS-style unitless trend
+    or raw slope, R² alongside ·
+    <a href="screener.html">📋 Stock List</a> ·
+    <a href="charts.html">📈 History charts</a> ·
+    data as of <span id="asof">…</span></div>
 </header>
 
-<div class="tiles" id="tiles"></div>
-
 <div class="filters">
-  <label>Search <input type="text" id="q" placeholder="ticker or name"></label>
-  <label>Sector <select id="sector"><option value="">All</option></select></label>
-  <label title="window used for the EPS / Rev-per-share / FCF-per-share trend fits">Trend window
+  <label title="what to rank all companies by — %metric is the unitless measure (slope ÷ latest value)">Rank by
+    <select id="metric" style="width:220px">
+      <optgroup label="%metric — unitless, per year">
+        <option value="eps:pg" selected>%EPS</option>
+        <option value="rps:pg">%Rev/sh</option>
+        <option value="fps:pg">%FCF/sh</option>
+        <option value="bps:pg">%Book/sh</option>
+        <option value="gm:pg">%GM</option>
+        <option value="om:pg">%OM</option>
+      </optgroup>
+      <optgroup label="Slope — native units per year">
+        <option value="eps:lm">EPS slope, $/yr</option>
+        <option value="rps:lm">Revenue/share slope, $/yr</option>
+        <option value="fps:lm">FCF/share slope, $/yr</option>
+        <option value="bps:lm">Book/share slope, $/yr</option>
+        <option value="gm:lm">Gross margin slope, pts/yr</option>
+        <option value="om:lm">Op margin slope, pts/yr</option>
+      </optgroup>
+    </select></label>
+  <label title="window used for the linear fits">Trend window
     <select id="tw"><option value="20">5 years</option>
       <option value="40" selected>10 years</option>
       <option value="0">All history</option></select></label>
-  <button id="clear">Clear all</button>
-  <button id="saveScr" title="save the current criteria + trend window as a named screen (find it under ☰ Menu)">💾 Save screen</button>
-  <button class="preset" data-p="cheapfcf">Preset: cheap FCF growers</button>
-  <button class="preset" data-p="mb">Preset: margin + buybacks</button>
-  <button class="preset" data-p="trend">Preset: steady EPS compounders</button>
+  <label>Sector <select id="sector" style="width:150px"><option value="">All</option></select></label>
 </div>
 
-<!-- v1.11.0: free-text screening criteria, interpreted locally and (when the
-     phrasing is unfamiliar) by the AI. -->
-<div class="crit" id="critRow"></div>
-<div class="crithelp">Type any criterion — e.g. <code>%EPS &gt; 10</code> ·
-  <code>%Rev/sh &gt; 8</code> · <code>P/E &lt; 20</code> ·
-  <code>EPS fit R² &ge; 0.9</code> · <code>price to sales under 4</code> ·
-  <code>shares shrinking</code> · <code>gross margin at least 40</code>.
-  Wording the built-in parser doesn't recognise is sent to the AI to translate
-  (needs the StockLab password once: ☰ Menu → AI setup).</div>
-
-<div id="listbar"><span class="lb-t" id="lbTitle"></span>
-  <a href="index.html">← full screener</a></div>
+<!-- v1.17.0: stackable filter levels — every level must pass. Nothing runs
+     until ⚡ Rank is pressed. -->
+<div class="filters" id="filtRows" style="padding-top:0;"></div>
+<div class="filters" style="padding-top:0;">
+  <button id="runBtn" style="background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:700;padding:8px 22px;">⚡ Rank</button>
+  <button id="clrBtn" title="clear every filter level">Clear filters</button>
+  <span id="filtNote" style="color:#6e7681;font-size:11.5px;align-self:center;"></span>
+</div>
 
 <div class="wrap"><table id="t"><thead></thead><tbody></tbody></table></div>
 <div id="status">Loading data…</div>
 
 <footer>
-  Trend fields come from a least-squares LINEAR fit y = c + m·t (t in years)
-  over the selected window: slope m is the change per year in the series' own
-  units and R² is the share of variance the straight line explains.
-  <b>%EPS, %Rev/sh, %FCF/sh …</b> (v1.16.0) are the UNITLESS versions: the
-  slope divided by the series' LATEST value — e.g. %EPS = EPS slope ($/yr) ÷
-  current TTM EPS — so companies of any size compare directly. Blank when the
-  latest value is near or below zero (a percentage of ~nothing is noise).
-  All fields, for nine series across three windows, are stored per ticker and
-  screenable by name ("%EPS > 15", "EPS fit R² ≥ 0.9", "revenue per share
-  slope ≥ 1").
-  Caveats: dual-class tickers (BRK-B, GOOGL, FOX…) can have distorted per-share metrics;
-  very large growth rates are usually M&amp;A, not organic; a small share of underlying
-  fundamentals are reported in non-USD. Educational screener, not investment advice —
-  verify before acting. Source data, methodology and QA reports:
-  <a href="https://github.com/parta1960/market-fundamentals-db">GitHub repo</a>.
+  Ranking uses the least-squares linear fit y = c + m·t (t in years) over the
+  selected window: either the raw slope m (the metric's change per year in its
+  own units) or — the default — the %metric form of it. R² is how much of the variance that straight line explains:
+  <span class="r2hi">green ≥ 0.8</span> (the slope is a faithful summary),
+  <span class="r2mid">amber 0.5–0.8</span> (trend with real wobble),
+  <span class="r2lo">grey &lt; 0.5</span> (the slope is NOT a reliable
+  description — treat with caution). <b>%EPS / %Rev/sh / …</b> (v1.16.0) is
+  the UNITLESS trend measure: the slope divided by the metric's LATEST value
+  (e.g. %EPS = EPS slope $/yr ÷ current TTM EPS), per year — so companies of
+  any size compare directly. Blank when the latest value is near or below
+  zero, where a percentage would be noise.
+  FILTER LEVELS (v1.17.0) stack with AND logic: a company must pass every
+  level (e.g. Fit R² ≥ 0.8 AND P/E ≤ 30 AND gross margin ≥ 40%) before it is
+  ranked; companies missing a filtered value are excluded. Nothing recomputes
+  until ⚡ Rank is pressed. Click any column header to re-sort;
+  click a ticker for its history charts. Educational tool, not investment
+  advice — <a href="https://github.com/parta1960/market-fundamentals-db">methodology</a>.
 </footer>
 
 <script>
-const COLS = [
-  ["ticker","Ticker","l"], ["name","Company","l"], ["sector","Sector","l"],
-  ["close","Close",""], ["pe_ttm","P/E",""], ["ps_ttm","P/S",""],
-  ["pfcf_ttm","P/FCF",""], ["pb","P/B",""],
-  ["gross_margin","GM%","pct"], ["op_margin","OM%","pct"], ["net_margin","NM%","pct"],
-  ["rev_yoy","Rev y/y","pctpol"], ["ni_yoy","NI y/y","pctpol"], ["shares_yoy","Shares y/y","pctpol"],
-  // v1.16.0 %metric columns — the UNITLESS trend measure: linear-fit slope
-  // divided by the series' LATEST value (e.g. EPS slope $/yr ÷ current TTM
-  // EPS), expressed per year. Screenable as "%EPS > 10" etc.
-  ["eps_pg","%EPS","pctpol"], ["rps_pg","%Rev/sh","pctpol"],
-  ["fps_pg","%FCF/sh","pctpol"],
-  // v1.13.0 linear-fit slope (units per year) and R² for the same three series
-  ["eps_lm","EPS slope $/yr","num"], ["eps_lr","EPS fit R²","num"],
-  ["rps_lm","Rev/sh slope $/yr","num"], ["rps_lr","Rev/sh fit R²","num"],
-  ["fps_lm","FCF/sh slope $/yr","num"], ["fps_lr","FCF/sh fit R²","num"],
-];
-/* ---- fit parameters (linear; %metric added v1.16.0) ---------------------
-   trends_<window>.json holds, per ticker and per metric:
-   [lg growth %/yr vs mean, lr R², lm slope per year, pg %metric, n quarters]
-   (field order comes from the file's own "fields" list, so old and new data
-   files both load). pg = slope ÷ LATEST value — the unitless "%EPS"-style
-   measure. All are flattened onto each row as <metric>_<field>, so ANY can
-   be screened, sorted or asked about. */
-const TR_METRIC_LABEL = { eps: "EPS", rps: "Revenue/share", fps: "FCF/share",
-  rev: "Revenue", ni: "Net income", fcf: "Free cash flow",
-  gm: "Gross margin", om: "Operating margin", bps: "Book value/share" };
-const TR_FIELDS = ["lg","lr","lm","pg","n"];
-let TRW = {}, trWin = "40";     // cache: window -> {t:{ticker:...}, fields:[]}
-function applyTrends() {
-  const cur = TRW[trWin] || {}, w = cur.t || {};
-  const fields = cur.fields || TR_FIELDS;
-  for (const r of rows) {
-    const t = w[r.ticker] || {};
-    for (const m of Object.keys(TR_METRIC_LABEL)) {
-      const v = t[m];
-      TR_FIELDS.forEach(f => {
-        const i = fields.indexOf(f);
-        r[m + "_" + f] = (v && i >= 0) ? v[i] : null;
-      });
-    }
-    r.eps_gr = r.eps_lg; r.rps_gr = r.rps_lg; r.fps_gr = r.fps_lg;
-    const bb = t._b;                       // [years since last break, count]
-    r.break_yrs = bb ? bb[0] : 99; r.break_n = bb ? bb[1] : 0;
-  }
-}
+const $ = id => document.getElementById(id);
+const METRIC_LABEL = { eps: "EPS", rps: "Rev/sh", fps: "FCF/sh",
+                       bps: "Book/sh", gm: "Gross margin", om: "Op margin" };
+// v1.16.0 unitless names: %X = slope ÷ latest value, per year
+const PCT_NAME = { eps: "%EPS", rps: "%Rev/sh", fps: "%FCF/sh",
+                   bps: "%Book/sh", gm: "%GM", om: "%OM" };
+const PCT_METRICS = new Set(["gm", "om"]);        // slopes in pts/yr, not $/yr
+let RATIOS = [], TRW = {}, trWin = "40";
+let sortKey = "pg", sortDir = -1;
+// #metric value is "<metric>:<rank field>", e.g. "eps:pg" (v1.16.3)
+const selMetric = () => $("metric").value.split(":")[0];
+const selRank = () => $("metric").value.split(":")[1];
+
 async function loadWindow(w) {
   if (TRW[w]) return true;
   try {
     const r = await fetch("data/trends_" + w + ".json");
     if (!r.ok) return false;
     const j = await r.json();
-    TRW[w] = { t: j.t || {}, fields: j.fields || TR_FIELDS };
+    TRW[w] = { t: j.t || {}, fields: j.fields || ["lg", "lr", "lm", "pg", "n"] };
     return true;
   } catch (e) { return false; }
 }
-let rows = [], sortKey = "ticker", sortDir = 1;
-// v1.15.0: ticker-list filter set by ?list=fav / ?port=<name> (menu views)
-let SLFILTER = null, SLBANNER = "";
 
-/* ---- screening field catalog + free-text parser (v1.11.0) --------------- */
-// field -> {label, unit: "x"|"pct"|"usd", syn: [phrases]}
-const FIELDS = {
-  pe_ttm:   { label: "P/E (TTM)", unit: "x", syn: ["pe","p/e","price to earnings","price earnings","earnings multiple"] },
-  ps_ttm:   { label: "P/S (TTM)", unit: "x", syn: ["ps","p/s","price to sales","price sales","sales multiple"] },
-  pfcf_ttm: { label: "P/FCF (TTM)", unit: "x", syn: ["pfcf","p/fcf","price to free cash flow","price to fcf","fcf multiple"] },
-  pb:       { label: "P/B", unit: "x", syn: ["pb","p/b","price to book","price book"] },
-  close:    { label: "Price", unit: "usd", syn: ["price","close","share price","stock price"] },
-  gross_margin: { label: "Gross margin", unit: "pct", syn: ["gross margin","gm","gross profit margin"] },
-  op_margin:{ label: "Operating margin", unit: "pct", syn: ["operating margin","op margin","om","ebit margin"] },
-  net_margin:{ label: "Net margin", unit: "pct", syn: ["net margin","nm","profit margin","net profit margin"] },
-  rev_yoy:  { label: "Revenue growth y/y", unit: "pct", syn: ["revenue growth yoy","rev yoy","revenue yoy","sales growth yoy","revenue growth year over year"] },
-  ni_yoy:   { label: "Net income growth y/y", unit: "pct", syn: ["net income growth yoy","ni yoy","earnings growth yoy","net income yoy"] },
-  shares_yoy:{ label: "Share count change y/y", unit: "pct", syn: ["shares yoy","share count change","dilution","buyback","buybacks","shares outstanding growth"] },
-  eps_ttm:  { label: "EPS (TTM)", unit: "usd", syn: ["eps","earnings per share"] },
-  // v1.12.0 structural breaks (spin-off / divestiture / transforming acquisition)
-  break_yrs:{ label: "Years since last structural break", unit: "x",
-    syn: ["years since structural break","years since break","years since spinoff",
-          "years since spin off","time since spinoff","years since restructuring"] },
-  break_n:  { label: "Number of structural breaks", unit: "x",
-    syn: ["structural breaks","number of spinoffs","spinoffs","breaks"] },
-};
-// trend fields: <metric>_<lg|lr|lm|eg|er|eb>
-const TREND_SYN = {
-  eps: ["eps","earnings per share","earnings"],
-  rps: ["revenue per share","rev per share","revenue/share","rev/sh","rps","sales per share"],
-  fps: ["fcf per share","free cash flow per share","fcf/share","fcf/sh","fps"],
-  rev: ["revenue","sales","top line"],
-  ni:  ["net income","profit","earnings total","bottom line"],
-  fcf: ["free cash flow","fcf"],
-  gm:  ["gross margin","gm"], om: ["operating margin","om"],
-  bps: ["book value per share","book value","book/sh","bps"],
-};
-function buildFieldCatalog() {
-  const cat = { ...FIELDS };
-  for (const [m, syns] of Object.entries(TREND_SYN)) {
-    cat[m + "_pg"] = { label: "%" + TR_METRIC_LABEL[m] + " (slope ÷ latest, per yr)", unit: "pct",
-      syn: syns.flatMap(s => ["%" + s, s + " %", s + " percent", s + " pct",
-        s + " normalized growth", s + " unitless growth", s + " relative slope",
-        s + " growth", s + " trend", s + " growth rate"]) };
-    cat[m + "_lg"] = { label: TR_METRIC_LABEL[m] + " growth vs mean level", unit: "pct",
-      syn: syns.flatMap(s => [s + " growth vs mean", s + " mean growth",
-        s + " linear growth", "linear " + s + " growth"]) };
-    cat[m + "_lr"] = { label: TR_METRIC_LABEL[m] + " linear fit R²", unit: "x",
-      syn: syns.flatMap(s => [s + " r2", s + " r²", s + " linear r2", s + " fit r²",
-        s + " fit quality", s + " trend consistency", s + " linearity",
-        s + " trend r²", s + " growth r²"]) };
-    cat[m + "_lm"] = { label: TR_METRIC_LABEL[m] + " linear slope per year", unit: "usd",
-      syn: syns.flatMap(s => [s + " slope per year", s + " slope", s + " slope/yr",
-        s + " linear slope", s + " trend slope", s + " change per year"]) };
+function buildRows() {
+  const m = selMetric(), cur = TRW[trWin] || {};
+  const w = cur.t || {}, F = cur.fields || [];
+  const gi = k => F.indexOf(k);
+  const out = [];
+  for (const x of RATIOS) {
+    const v = (w[x.ticker] || {})[m];
+    if (!v) continue;                              // no fit for this window
+    out.push({ ticker: x.ticker, name: x.name || "", sector: x.sector || "",
+               lg: v[gi("lg")], lr: v[gi("lr")], lm: v[gi("lm")],
+               pg: gi("pg") >= 0 ? v[gi("pg")] : null, n: v[gi("n")],
+               // ratio fields available as extra filter levels (v1.17.0)
+               pe: x.pe_ttm, ps: x.ps_ttm, pfcf: x.pfcf_ttm, pb: x.pb,
+               gmv: x.gross_margin, omv: x.op_margin, nmv: x.net_margin,
+               revy: x.rev_yoy, niy: x.ni_yoy, shy: x.shares_yoy,
+               eps: x.eps_ttm, close: x.close });
   }
-  return cat;
+  return out;
 }
-let CAT = null;
 
-const OPS = [
-  [/(^|\s)(<=|=<|≤|no more than|at most|maximum|max|under|below|less than|cheaper than)\s*/i, "<="],
-  [/(^|\s)(>=|=>|≥|at least|minimum|min|over|above|more than|greater than|higher than)\s*/i, ">="],
-  [/(^|\s)(<)\s*/, "<"], [/(^|\s)(>)\s*/, ">"],
-  [/(^|\s)(==|=|equals|equal to|is)\s*/i, ">="],
+/* ---- stackable filter levels (v1.17.0) — every level must pass ---------- */
+const FILTER_FIELDS = [
+  ["",     "— no filter —", "x"],
+  ["lr",   "Fit R² (ranked metric)", "x"],
+  ["pg",   "%metric (ranked), %/yr", "pct"],
+  ["lm",   "Slope (ranked), units/yr", "x"],
+  ["pe",   "P/E (TTM)", "x"],
+  ["ps",   "P/S (TTM)", "x"],
+  ["pfcf", "P/FCF (TTM)", "x"],
+  ["pb",   "P/B", "x"],
+  ["gmv",  "Gross margin level, %", "pct"],
+  ["omv",  "Operating margin level, %", "pct"],
+  ["nmv",  "Net margin level, %", "pct"],
+  ["revy", "Revenue growth y/y, %", "pct"],
+  ["niy",  "Net income growth y/y, %", "pct"],
+  ["shy",  "Share count change y/y, %", "pct"],
+  ["eps",  "EPS (TTM), $", "x"],
+  ["close","Price, $", "x"],
 ];
-function parseCriterion(text) {
-  const raw = String(text || "").trim();
-  if (!raw) return null;
-  let s = " " + raw.toLowerCase().replace(/[,]/g, "") + " ";
-  // normalise R² spellings FIRST so the "2" in "R2" is never read as a value
-  s = s.replace(/\br\s*(?:\^?2|²|-?squared|-?sq)\b/g, " r² ");
-  // shorthand phrases that imply a whole condition
-  const SHORT = [
-    [/shares?\s+(are\s+)?shrink|buying back|net buyback|reducing shares/, { field: "shares_yoy", op: "<", value: 0 }],
-    [/profitable|makes? money|positive earnings/, { field: "eps_ttm", op: ">", value: 0 }],
-    [/dilut(ing|ion)/, { field: "shares_yoy", op: ">", value: 0 }],
-    [/no (structural )?break|no spin ?-?off|clean history|uninterrupted/,
-      { field: "break_yrs", op: ">=", value: 10 }],
-  ];
-  for (const [re, f] of SHORT) if (re.test(s)) return { ...f, src: raw };
-  // operator
-  let op = null;
-  for (const [re, o] of OPS) {
-    if (re.test(s)) { op = o; s = s.replace(re, " "); break; }
-  }
-  // number (allow %, x, $)
-  const nm = s.match(/-?\d+(\.\d+)?\s*%?/);
-  if (!nm) return null;
-  let value = parseFloat(nm[0]);
-  const isPct = /%/.test(nm[0]);
-  s = (s.slice(0, nm.index) + " " + s.slice(nm.index + nm[0].length)).replace(/\s+/g, " ").trim();
-  s = s.replace(/\b(ratio|rate|of|per year|per yr|a year|yearly|annual|annually|is|the|in|for|at|:)\b/g, " ")
-       .replace(/[^a-z0-9/²%\s]/g, " ").replace(/\s+/g, " ").trim();
-  if (!s) return null;
-  // best synonym match: longest phrase contained in the text
-  let best = null, bestLen = 0;
-  for (const [key, def] of Object.entries(CAT)) {
-    for (const syn of def.syn) {
-      const sy = syn.toLowerCase();
-      if (s.includes(sy) && sy.length > bestLen) { best = key; bestLen = sy.length; }
-    }
-  }
-  if (!best) return null;
-  const def = CAT[best];
-  if (!op) op = /margin|growth|trend|slope|r²|r2/.test(def.label.toLowerCase()) ? ">=" : "<=";
-  if (def.unit === "pct" && (isPct || Math.abs(value) > 1.5)) value = value / 100;
-  return { field: best, op, value, src: raw };
+const NFILT = 4;
+function buildFiltRows() {
+  $("filtRows").innerHTML = Array.from({ length: NFILT }, (_, i) => `
+    <label>Filter level ${i + 1}
+      <span style="display:flex;gap:6px;">
+        <select id="f${i}k" style="width:195px">${FILTER_FIELDS.map(([k, l]) =>
+          `<option value="${k}">${l}</option>`).join("")}</select>
+        <select id="f${i}o" style="width:58px"><option value=">=">≥</option><option value="<=">≤</option></select>
+        <input id="f${i}v" type="number" step="any" style="width:85px" placeholder="value">
+      </span></label>`).join("");
+  $("f0k").value = "lr";                       // suggest the natural first level
 }
-function critLabel(c) {
-  const def = CAT[c.field] || { label: c.field, unit: "x" };
-  const v = def.unit === "pct" ? (100 * c.value).toFixed(1) + "%"
-          : def.unit === "usd" ? "$" + c.value : c.value;
-  return `${def.label} ${c.op} ${v}`;
-}
-function passes(x, c) {
-  const v = x[c.field];
-  if (typeof v !== "number" || Number.isNaN(v)) return false;
-  return c.op === "<=" ? v <= c.value : c.op === "<" ? v < c.value
-       : c.op === ">" ? v > c.value : v >= c.value;
+function activeFilters() {
+  const out = [];
+  for (let i = 0; i < NFILT; i++) {
+    const k = $("f" + i + "k").value, raw = $("f" + i + "v").value.trim();
+    if (!k || raw === "" || isNaN(+raw)) continue;
+    const def = FILTER_FIELDS.find(f => f[0] === k);
+    out.push({ k, label: def[1], op: $("f" + i + "o").value,
+               shown: +raw, v: def[2] === "pct" ? +raw / 100 : +raw });
+  }
+  return out;
 }
 
-const $ = id => document.getElementById(id);
-const fmt = (v, kind) => {
-  if (v === null || v === undefined || Number.isNaN(v)) return "–";
-  if (kind === "pct" || kind === "pctpol") return (v >= 0 && kind === "pctpol" ? "+" : "") + (100*v).toFixed(1) + "%";
-  if (typeof v === "number") return Math.abs(v) >= 1000 ? v.toLocaleString(undefined,{maximumFractionDigits:0}) : v.toFixed(v < 10 ? 2 : 1);
-  return v;
+const fSlope = (v, m) => {
+  if (typeof v !== "number") return "–";
+  const s = (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(Math.abs(v) < 10 ? 2 : 1);
+  return PCT_METRICS.has(m) ? (v >= 0 ? "+" : "−") + (100 * Math.abs(v)).toFixed(1) + " pts" : s;
 };
-
-const NCRIT = 6;                       // number of free-text criteria boxes
-const crits = new Array(NCRIT).fill(null);   // parsed criteria (or null)
-
-function buildCritRow() {
-  $("critRow").innerHTML = Array.from({ length: NCRIT }, (_, i) =>
-    `<div class="cbox"><input id="c${i}" placeholder="${i ? "another criterion…" : "e.g. %EPS > 10 · P/E < 20"}">` +
-    `<div class="tag" id="ct${i}"></div></div>`).join("");
-  for (let i = 0; i < NCRIT; i++) {
-    const inp = $("c" + i);
-    inp.addEventListener("input", () => setCrit(i, inp.value, false));
-    inp.addEventListener("change", () => setCrit(i, inp.value, true));
-    inp.addEventListener("keydown", e => { if (e.key === "Enter") setCrit(i, inp.value, true); });
-  }
-}
-async function setCrit(i, text, allowAI) {
-  const inp = $("c" + i), tag = $("ct" + i);
-  inp.classList.remove("ok", "bad"); tag.className = "tag";
-  if (!text.trim()) { crits[i] = null; tag.textContent = ""; render(); return; }
-  const c = parseCriterion(text);
-  if (c) {
-    crits[i] = c; inp.classList.add("ok");
-    tag.className = "tag ok"; tag.textContent = "✓ " + critLabel(c);
-    render(); return;
-  }
-  crits[i] = null; render();
-  if (!allowAI) { tag.textContent = "…keep typing (Enter to ask the AI)"; return; }
-  tag.textContent = "asking the AI…";
-  const ai = await aiParse(text);
-  if (ai && CAT[ai.field]) {
-    crits[i] = { ...ai, src: text };
-    inp.classList.add("ok"); tag.className = "tag ok";
-    tag.textContent = "✓ AI: " + critLabel(crits[i]);
-  } else {
-    inp.classList.add("bad"); tag.className = "tag bad";
-    tag.textContent = ai === null
-      ? "couldn't interpret — try e.g. \"P/E < 20\" (AI needs the StockLab password)"
-      : "couldn't interpret that criterion";
-  }
-  render();
-}
-// ask the assistant to translate free text into {field, op, value}
-async function aiParse(text) {
-  const pass = localStorage.getItem("mfdb_ai_pass") || "";
-  const keys = JSON.parse(localStorage.getItem("mfdb_ai_keys") || "{}");
-  const prov = localStorage.getItem("mfdb_ai_prov") || "claude";
-  if (!pass && !keys[prov]) return null;
-  const fields = Object.entries(CAT)
-    .map(([k, d]) => `${k} = ${d.label} (${d.unit})`).join("; ");
-  const sys = "You convert one stock-screening criterion into JSON. Available " +
-    "fields: " + fields + ". Percentages are FRACTIONS (0.15 = 15%). Reply with " +
-    "ONLY a JSON object: {\"field\":\"<field key>\",\"op\":\"<=|>=|<|>\",\"value\":<number>}. " +
-    "No prose, no code fence.";
-  try {
-    let out = "";
-    if (pass) {
-      const r = await fetch("https://stocklab-ai-proxy.netlify.app/.netlify/functions/ai", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-stocklab-pass": pass },
-        body: JSON.stringify({ prov, op: "chat",
-          model: (JSON.parse(localStorage.getItem("mfdb_ai_model_choice") || "{}")[prov]) || "",
-          system: sys, messages: [{ role: "user", content: text }] }) });
-      const j = await r.json();
-      if (!r.ok) return false;
-      out = j.text || "";
-    } else { return null; }
-    const m = out.match(/\{[\s\S]*\}/);
-    if (!m) return false;
-    const o = JSON.parse(m[0]);
-    if (!o || !o.field || typeof o.value !== "number") return false;
-    return { field: o.field, op: ["<=", ">=", "<", ">"].includes(o.op) ? o.op : ">=", value: o.value };
-  } catch (e) { return false; }
-}
+const fPct = v => typeof v === "number"
+  ? (v >= 0 ? "+" : "−") + (100 * Math.abs(v)).toFixed(1) + "%" : "–";
+const r2cls = r => r >= 0.8 ? "r2hi" : r >= 0.5 ? "r2mid" : "r2lo";
 
 function render() {
-  const q = $("q").value.trim().toUpperCase(), sec = $("sector").value;
-  const active = crits.filter(Boolean);
-  let r = rows.filter(x =>
-    (!q || x.ticker.includes(q) || (x.name||"").toUpperCase().includes(q)) &&
-    (!sec || x.sector === sec) &&
-    (!SLFILTER || SLFILTER.has(x.ticker)) &&
-    active.every(c => passes(x, c)));
-  r.sort((a,b) => {
-    const va = a[sortKey], vb = b[sortKey];
-    if (va == null) return 1; if (vb == null) return -1;
-    return (va < vb ? -1 : va > vb ? 1 : 0) * sortDir;
+  const m = selMetric(), sec = $("sector").value;
+  const filts = activeFilters();
+  let rows = buildRows().filter(r => filts.every(f => {
+    const v = r[f.k];
+    if (typeof v !== "number" || Number.isNaN(v)) return false;
+    return f.op === ">=" ? v >= f.v : v <= f.v;
+  }));
+  if (sec) rows = rows.filter(r => r.sector === sec);
+  rows.sort((a, b) => {
+    const A = a[sortKey], B = b[sortKey];
+    if (typeof A === "string") return sortDir * A.localeCompare(B);
+    return sortDir * (((A ?? -1e18)) - ((B ?? -1e18)));
   });
-  $("t").querySelector("thead").innerHTML = "<tr>" + COLS.map(([k,lab,kind]) =>
-    `<th class="${kind==='l'?'l ':''}${k===sortKey?'sorted':''}" data-k="${k}">${lab}${k===sortKey?(sortDir>0?" ↑":" ↓"):""}</th>`).join("") + "</tr>";
-  $("t").querySelector("tbody").innerHTML = r.map(x => "<tr>" + COLS.map(([k,,kind]) => {
-    const v = x[k];
-    let cls = kind === "l" ? "l" : "";
-    if (k === "ticker") cls += " tick"; if (k === "name") cls += " name";
-    if (kind === "pctpol" && typeof v === "number") cls += v >= 0 ? " pos" : " neg";
-    const cell = k === "ticker"
-      ? `<a style="color:inherit;text-decoration:none" href="charts.html?t=${v}" title="history charts">${v}</a> ` +
-        (window.__sl ? window.__sl.controlsHTML(v) : "")
-      : fmt(v, kind);
-    // trend cells carry the underlying fit in a tooltip (slope, R², points)
-    let tip = "";
-    if (k.endsWith("_pg") || k.endsWith("_lm") || k.endsWith("_lr")) {
-      const m = k.split("_")[0], pg = x[m + "_pg"], lm = x[m + "_lm"],
-            lr = x[m + "_lr"], n = x[m + "_n"];
-      tip = n ? ` title="linear fit y=c+m·t — slope m ${lm >= 0 ? "+" : ""}${lm}/yr`
-              + `, %${TR_METRIC_LABEL[m]} = slope ÷ latest = ${pg != null ? (pg >= 0 ? "+" : "") + (100 * pg).toFixed(1) + "%/yr" : "n/a (latest value near/below zero)"}`
-              + `, R²=${lr} over ${n} quarters"`
-              : ` title="not enough data for a fit"`;
-    }
-    return `<td class="${cls}"${tip}>${cell}</td>`; }).join("") + "</tr>").join("");
-  if (window.__sl) window.__sl.paint($("t"));
-  $("status").textContent = SLFILTER
-    ? `${r.length} stock${r.length === 1 ? "" : "s"}`
-    : `${r.length} of ${rows.length} companies` +
-      (SLBANNER ? ` · showing ${SLBANNER}` : "");
+  const slopeUnit = PCT_METRICS.has(m) ? "pts/yr" : "$/yr";
+  const cols = [
+    ["rank", "#", ""], ["ticker", "Ticker", "l"], ["name", "Company", "l"],
+    ["sector", "Sector", "l"],
+    ["lm", METRIC_LABEL[m] + " slope " + slopeUnit, ""],
+    ["lr", "Fit R²", ""], ["pg", PCT_NAME[m] + " /yr", ""], ["n", "Quarters", ""],
+  ];
+  document.querySelector("thead").innerHTML = "<tr>" + cols.map(([k, h, cls]) =>
+    `<th class="${cls}${k === sortKey ? " sorted" : ""}" data-k="${k}">${h}${k === sortKey ? (sortDir < 0 ? " ↓" : " ↑") : ""}</th>`).join("") + "</tr>";
+  document.querySelector("tbody").innerHTML = rows.map((r, i) => {
+    const tip = ` title="linear fit over ${r.n} quarters — slope ${fSlope(r.lm, m)}/yr; ` +
+      `${PCT_NAME[m]} = slope ÷ latest value = ${fPct(r.pg)}/yr; R²=${r.lr}"`;
+    return "<tr>" +
+      `<td>${i + 1}</td>` +
+      `<td class="l tick"><a style="color:inherit;text-decoration:none" href="charts.html?t=${r.ticker}">${r.ticker}</a> ` +
+      (window.__sl ? window.__sl.controlsHTML(r.ticker) : "") + `</td>` +
+      `<td class="l name">${r.name}</td><td class="l">${r.sector}</td>` +
+      `<td class="${r.lm >= 0 ? "pos" : "neg"}"${tip}>${fSlope(r.lm, m)}</td>` +
+      `<td class="${r2cls(r.lr)}"${tip}>${r.lr.toFixed(2)}</td>` +
+      `<td class="${typeof r.pg === "number" ? (r.pg >= 0 ? "pos" : "neg") : ""}"${tip}>${fPct(r.pg)}</td>` +
+      `<td>${r.n}</td></tr>`;
+  }).join("");
+  if (window.__sl) window.__sl.paint();
+  $("status").textContent = `${rows.length} companies pass` +
+    (filts.length ? ` ${filts.length} filter level${filts.length > 1 ? "s" : ""}` : " (no filters)") +
+    ` — ranked by ${sortKey === "pg" ? PCT_NAME[m] : sortKey === "lm" ? METRIC_LABEL[m] + " slope" : sortKey}`;
+  $("filtNote").textContent = filts.length
+    ? filts.map(f => `${f.label} ${f.op === ">=" ? "≥" : "≤"} ${f.shown}`).join("  ·  ")
+    : "add filter levels above, then press ⚡ Rank";
   document.querySelectorAll("th").forEach(th => th.onclick = () => {
     const k = th.dataset.k;
-    if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = k === "ticker" || k === "name" || k === "sector" ? 1 : -1; }
+    if (k === "rank") return;
+    if (sortKey === k) sortDir = -sortDir;
+    else { sortKey = k; sortDir = (k === "ticker" || k === "name" || k === "sector") ? 1 : -1; }
     render();
   });
-}
-
-// presets now fill the free-text boxes, so you can see and edit what they do
-const PRESETS = {
-  cheapfcf: ["P/FCF < 20", "revenue growth y/y > 10%"],
-  mb:       ["gross margin > 40%", "shares shrinking"],
-  trend:    ["EPS growth > 12%", "EPS R2 > 0.85", "P/E < 30"],
-};
-function applyPreset(name) {
-  clearAll();
-  (PRESETS[name] || []).forEach((txt, i) => {
-    if (i < NCRIT) { $("c" + i).value = txt; setCrit(i, txt, false); }
-  });
-}
-function clearAll() {
-  if (SLFILTER) { location.href = "index.html"; return; }   // leave the menu view
-  $("q").value = ""; $("sector").value = "";
-  for (let i = 0; i < NCRIT; i++) {
-    $("c" + i).value = ""; crits[i] = null;
-    $("c" + i).classList.remove("ok", "bad");
-    $("ct" + i).textContent = ""; $("ct" + i).className = "tag";
-  }
-  render();
-}
-
-// v1.15.0: apply menu views + saved screens from the URL, save new screens
-function applyURLViews() {
-  const u = new URLSearchParams(location.search);
-  const g = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; }
-                        catch (e) { return d; } };
-  if (u.get("list") === "fav") {
-    SLFILTER = new Set(g("mfdb_favs", [])); SLBANNER = "★ Favorites";
-  } else if (u.get("port")) {
-    const n = u.get("port");
-    SLFILTER = new Set((g("mfdb_ports", {})[n]) || []); SLBANNER = "▦ " + n;
-  }
-  if (SLFILTER) {                       // v1.17.3: clean list-only view
-    document.body.classList.add("listmode");
-    $("lbTitle").textContent = SLBANNER;
-  }
-  if (u.get("screen")) {
-    const n = u.get("screen"), s = g("mfdb_screens", {})[n];
-    if (s) {
-      SLBANNER = "💾 " + n;
-      if (s.w && s.w !== trWin) { $("tw").value = s.w;
-        loadWindow(s.w).then(ok => { if (ok) { trWin = s.w; applyTrends(); render(); } }); }
-      (s.crits || []).slice(0, NCRIT).forEach((src, i) => {
-        $("c" + i).value = src; setCrit(i, src, true); });
-    } else SLBANNER = "💾 " + n + " (not found on this device)";
-  }
-}
-function saveCurrentScreen() {
-  const srcs = [];
-  for (let i = 0; i < NCRIT; i++) { const v = $("c" + i).value.trim(); if (v) srcs.push(v); }
-  if (!srcs.length) { alert("Type at least one criterion first, then save."); return; }
-  const name = (prompt("Name this screen:") || "").trim();
-  if (!name) return;
-  if (!window.__sl) { alert("Still loading — try again in a second."); return; }
-  window.__sl.saveScreen(name, { w: $("tw").value, crits: srcs });
-  $("status").textContent = `✓ screen "${name}" saved — find it under ☰ Menu (syncs to your other devices once the StockLab password is set)`;
 }
 
 Promise.all([
@@ -508,38 +273,35 @@ Promise.all([
   loadWindow("40"),
 ])
 .then(([d]) => {
-  rows = d;
-  CAT = buildFieldCatalog();
-  applyTrends();
-  buildCritRow();
-  window.__screener = { rows: () => rows };
+  RATIOS = d;
   $("asof").textContent = d[0]?.date || "?";
   [...new Set(d.map(x => x.sector).filter(Boolean))].sort().forEach(s => {
     const o = document.createElement("option"); o.value = o.textContent = s; $("sector").appendChild(o); });
-  const med = k => { const v = d.map(x => x[k]).filter(x => typeof x === "number" && x > 0).sort((a,b)=>a-b); return v[v.length>>1]; };
-  $("tiles").innerHTML = [
-    [d.length, "companies"], [med("pe_ttm").toFixed(1), "median P/E (TTM)"],
-    [med("ps_ttm").toFixed(1), "median P/S"], [(100*med("gross_margin")).toFixed(0)+"%", "median gross margin"],
-    [d.filter(x => x.shares_yoy < -0.03).length, "buying back >3%/yr"],
-  ].map(([v,k]) => `<div class="tile"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("");
-  ["q", "sector"].forEach(id => $(id).oninput = render);
-  $("tw").onchange = async () => {
+  buildFiltRows();
+  // v1.17.0: NOTHING recomputes while you set things up — the table only
+  // updates when ⚡ Rank is pressed (also immune to stray text injection,
+  // since there is no free-text search box any more).
+  async function run() {
+    $("status").textContent = "Ranking…";
     const w = $("tw").value;
-    $("status").textContent = "Loading trend window…";
     if (await loadWindow(w)) trWin = w;
-    applyTrends(); render();
+    sortKey = selRank(); sortDir = -1;
+    render();
+  }
+  $("runBtn").onclick = run;
+  $("clrBtn").onclick = () => {
+    for (let i = 0; i < NFILT; i++) {
+      $("f" + i + "k").value = i === 0 ? "lr" : "";
+      $("f" + i + "o").value = ">="; $("f" + i + "v").value = "";
+    }
+    $("sector").value = "";
   };
-  $("clear").onclick = clearAll;
-  $("saveScr").onclick = saveCurrentScreen;
-  document.querySelectorAll(".preset").forEach(b => b.onclick = () => applyPreset(b.dataset.p));
-  applyURLViews();
-  document.addEventListener("slsync", () => { applyURLViews(); render(); });
-  render();
+  run();
 })
-.catch(e => { $("status").textContent = "Failed to load data/latest_ratios.json (" + e.message + "). The first daily run after this page was deployed populates it."; });
+.catch(e => { $("status").textContent = "Failed to load data (" + e.message + ")."; });
 </script>
-<script src="chat.js?v=v1.17.3" defer></script>
-<script src="menu.js?v=v1.17.3" defer></script>
-<script src="stocklab.js?v=v1.17.3" defer></script>
+<script src="chat.js?v=v1.18.0" defer></script>
+<script src="menu.js?v=v1.18.0" defer></script>
+<script src="stocklab.js?v=v1.18.0" defer></script>
 </body>
 </html>

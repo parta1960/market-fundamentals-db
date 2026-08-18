@@ -70,9 +70,9 @@
     <div class="mhead" id="slMenuInfo">StockLab ${ver}</div>
     <button class="mi" id="slAiSetup">${IC.key}AI setup — password &amp; API keys</button>
     <button class="mi" id="slShare">${IC.share}Share this view (copy link)</button>
-    <a class="mi" href="index.html">${IC.list}Screener</a>
+    <a class="mi" href="index.html">${IC.rank}Rankings (home)</a>
+    <a class="mi" href="screener.html">${IC.list}Stock List</a>
     <a class="mi" href="charts.html">${IC.chart}History Charts</a>
-    <a class="mi" href="rankings.html">${IC.rank}Rankings</a>
     <div id="slMenuDyn"></div>
     <a class="mi" target="_blank" rel="noopener"
        href="https://github.com/parta1960/market-fundamentals-db/blob/main/CHANGELOG.md">${IC.doc}Changelog (what's new)</a>
@@ -88,16 +88,17 @@
     if (!window.__sl) { dyn.innerHTML = ""; return; }
     const favN = window.__sl.favs().length;
     const ports = window.__sl.ports(), screens = window.__sl.screens();
-    // v1.17.3: Favorites / portfolios open a clean LIST VIEW (the screener
+    // v1.17.3: Favorites / portfolios open a clean LIST VIEW (the stock-list
     // page in list mode — just the stocks, none of the screening clutter).
-    let h = `<a class="mi" href="index.html?list=fav">${IC.star}Favorites` +
+    // v1.18.0: that page moved to screener.html (index.html = Rankings now).
+    let h = `<a class="mi" href="screener.html?list=fav">${IC.star}Favorites` +
             ` <span class="mcount">(${favN})</span></a>`;
     for (const n of Object.keys(ports).sort())
-      h += `<a class="mi" href="index.html?port=${encodeURIComponent(n)}">${IC.grid}${n}` +
+      h += `<a class="mi" href="screener.html?port=${encodeURIComponent(n)}">${IC.grid}${n}` +
            ` <span class="mcount">(${ports[n].length})</span>` +
            `<span class="mdel" data-kind="port" data-n="${n}" title="delete this portfolio">✕</span></a>`;
     for (const n of Object.keys(screens).sort())
-      h += `<a class="mi" href="index.html?screen=${encodeURIComponent(n)}">${IC.save}${n}` +
+      h += `<a class="mi" href="screener.html?screen=${encodeURIComponent(n)}">${IC.save}${n}` +
            `<span class="mdel" data-kind="screen" data-n="${n}" title="delete this saved screen">✕</span></a>`;
     dyn.innerHTML = h;
     dyn.querySelectorAll(".mdel").forEach(x => x.onclick = e => {
