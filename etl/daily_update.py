@@ -142,6 +142,11 @@ def main():
 
     derived.build()
     history_export.build()
+    try:
+        import peg
+        peg.build(fetch_forward=True)          # v1.20.0: PEG variants -> latest_ratios.json
+    except Exception as e:                      # never let PEG break the daily job
+        print(f"peg step failed (non-fatal): {e}")
 
     os.makedirs("reports", exist_ok=True)
     with open("reports/daily_update_last.json", "w") as f:

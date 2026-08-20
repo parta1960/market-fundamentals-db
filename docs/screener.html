@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — Stock List (screener)</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.19.1"></script>
+<script src="version.js?v=v1.20.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -110,7 +110,8 @@
 <div class="crithelp">Type any criterion — e.g. <code>%EPS &gt; 10</code> ·
   <code>%Rev/sh &gt; 8</code> · <code>P/E &lt; 20</code> ·
   <code>EPS fit R² &ge; 0.9</code> · <code>price to sales under 4</code> ·
-  <code>shares shrinking</code> · <code>gross margin at least 40</code>.
+  <code>shares shrinking</code> · <code>gross margin at least 40</code> ·
+  <code>PEG cagr3 &lt; 2</code> · <code>forward PEG &lt; 1.5</code> (v1.20.0).
   Wording the built-in parser doesn't recognise is sent to the AI to translate
   (needs the StockLab password once: ☰ Menu → AI setup).</div>
 
@@ -213,6 +214,21 @@ const FIELDS = {
   ni_yoy:   { label: "Net income growth y/y", unit: "pct", syn: ["net income growth yoy","ni yoy","earnings growth yoy","net income yoy"] },
   shares_yoy:{ label: "Share count change y/y", unit: "pct", syn: ["shares yoy","share count change","dilution","buyback","buybacks","shares outstanding growth"] },
   eps_ttm:  { label: "EPS (TTM)", unit: "usd", syn: ["eps","earnings per share"] },
+  // v1.20.0 PEG variants (populated in latest_ratios.json by etl/peg.py).
+  // Trailing = P/E ÷ EPS growth over a window; forward = Alpha Vantage.
+  // Lower is cheaper-for-growth; blank when growth ≤ 0.
+  peg_cagr3:{ label: "PEG (3y EPS CAGR)", unit: "x",
+    syn: ["peg cagr3","peg 3y","peg 3 year","peg_cagr3","peg three year"] },
+  peg_cagr5:{ label: "PEG (5y EPS CAGR)", unit: "x",
+    syn: ["peg cagr5","peg 5y","peg 5 year","peg_cagr5","peg five year"] },
+  peg_lin:  { label: "PEG (10y linear %EPS)", unit: "x",
+    syn: ["peg lin","peg linear","peg_lin","peg lin10","peg 10y"] },
+  peg_yoy:  { label: "PEG (1y EPS change)", unit: "x",
+    syn: ["peg yoy","peg 1y","peg_yoy","peg year over year"] },
+  peg_fwd:  { label: "PEG (forward, Alpha Vantage)", unit: "x",
+    syn: ["peg","peg ratio","peg fwd","peg forward","peg_fwd","forward peg"] },
+  fwd_pe:   { label: "Forward P/E (Alpha Vantage)", unit: "x",
+    syn: ["forward pe","fwd pe","forward p/e","fwd_pe","forward price earnings"] },
   // v1.12.0 structural breaks (spin-off / divestiture / transforming acquisition)
   break_yrs:{ label: "Years since last structural break", unit: "x",
     syn: ["years since structural break","years since break","years since spinoff",
@@ -279,6 +295,18 @@ function parseCriterion(text) {
   for (const [re, o] of OPS) {
     if (re.test(s)) { op = o; s = s.replace(re, " "); break; }
   }
+  // v1.20.0: pre-strip the longest matching field synonym BEFORE reading the
+  // number, so digits INSIDE a field name (e.g. "cagr3", "3y") are never
+  // mistaken for the threshold value (which caused "PEG cagr3 < 2" to parse as
+  // forward-PEG < 3). If nothing pre-matches, fall through to the old path.
+  s = s.replace(/\s+/g, " ");             // collapse (R² normaliser leaves gaps)
+  let preField = null, preSyn = "", preLen = 0;
+  for (const [key, def] of Object.entries(CAT))
+    for (const syn of def.syn) {
+      const sy = syn.toLowerCase();
+      if (sy.length > preLen && s.includes(sy)) { preField = key; preSyn = sy; preLen = sy.length; }
+    }
+  if (preField) s = s.split(preSyn).join(" ");
   // number (allow %, x, $)
   const nm = s.match(/-?\d+(\.\d+)?\s*%?/);
   if (!nm) return null;
@@ -287,13 +315,16 @@ function parseCriterion(text) {
   s = (s.slice(0, nm.index) + " " + s.slice(nm.index + nm[0].length)).replace(/\s+/g, " ").trim();
   s = s.replace(/\b(ratio|rate|of|per year|per yr|a year|yearly|annual|annually|is|the|in|for|at|:)\b/g, " ")
        .replace(/[^a-z0-9/²%\s]/g, " ").replace(/\s+/g, " ").trim();
-  if (!s) return null;
-  // best synonym match: longest phrase contained in the text
-  let best = null, bestLen = 0;
-  for (const [key, def] of Object.entries(CAT)) {
-    for (const syn of def.syn) {
-      const sy = syn.toLowerCase();
-      if (s.includes(sy) && sy.length > bestLen) { best = key; bestLen = sy.length; }
+  // field already identified by the pre-strip? use it. Otherwise (nothing
+  // pre-matched, e.g. the number sat before the field name) match on what's left.
+  let best = preField, bestLen = preLen;
+  if (!best) {
+    if (!s) return null;
+    for (const [key, def] of Object.entries(CAT)) {
+      for (const syn of def.syn) {
+        const sy = syn.toLowerCase();
+        if (s.includes(sy) && sy.length > bestLen) { best = key; bestLen = sy.length; }
+      }
     }
   }
   if (!best) return null;
@@ -538,8 +569,8 @@ Promise.all([
 })
 .catch(e => { $("status").textContent = "Failed to load data/latest_ratios.json (" + e.message + "). The first daily run after this page was deployed populates it."; });
 </script>
-<script src="chat.js?v=v1.19.1" defer></script>
-<script src="menu.js?v=v1.19.1" defer></script>
-<script src="stocklab.js?v=v1.19.1" defer></script>
+<script src="chat.js?v=v1.20.0" defer></script>
+<script src="menu.js?v=v1.20.0" defer></script>
+<script src="stocklab.js?v=v1.20.0" defer></script>
 </body>
 </html>

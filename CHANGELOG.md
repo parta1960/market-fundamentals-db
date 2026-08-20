@@ -21,6 +21,28 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.20.0 — 2026-08-18
+
+- **PEG ratios added to the database** (`etl/peg.py`, written into
+  `latest_ratios.json` at the end of the nightly job). Six new per-ticker
+  fields:
+  - `peg_cagr3` — P/E ÷ 3-year EPS CAGR
+  - `peg_cagr5` — P/E ÷ 5-year EPS CAGR
+  - `peg_lin` — P/E ÷ %EPS(10y) (the linear-fit unitless slope from trends)
+  - `peg_yoy` — P/E ÷ 1-year EPS change
+  - `peg_fwd` — forward PEG from Alpha Vantage OVERVIEW (premium key, one
+    OVERVIEW call per ticker; carried forward on any failure)
+  - `fwd_pe` — Alpha Vantage forward P/E (kept alongside)
+  Trailing PEGs are blanked when P/E ≤ 0 or growth ≤ 0. Verified: all four
+  trailing values reproduce the hand-checked 10-stock comparison exactly.
+- The PEGs are **screenable now** on the Stock List (free-text criteria, e.g.
+  `PEG cagr3 < 2`, `forward PEG < 1.5`); columns and Rankings options are
+  intentionally deferred until a display choice is made.
+- Context: a 10-stock consistency check found the two forward-PEG vendors
+  (Alpha Vantage vs stockanalysis.com) correlate strongly (r≈0.92) but differ
+  ~22% on level — no single PEG is authoritative, which is why all variants
+  are stored side by side.
+
 ## v1.19.1 — 2026-08-18
 
 - **☰ menu: portfolios grouped under one "Portfolios" row** (user request) —
