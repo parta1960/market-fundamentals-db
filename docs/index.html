@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — Rankings screener</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.21.0"></script>
+<script src="version.js?v=v1.22.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -166,7 +166,10 @@ function buildRows() {
                pe: x.pe_ttm, ps: x.ps_ttm, pfcf: x.pfcf_ttm, pb: x.pb,
                gmv: x.gross_margin, omv: x.op_margin, nmv: x.net_margin,
                revy: x.rev_yoy, niy: x.ni_yoy, shy: x.shares_yoy,
-               eps: x.eps_ttm, close: x.close });
+               eps: x.eps_ttm, close: x.close,
+               // v1.22.0 PEG fields (from latest_ratios.json / etl/peg.py)
+               pegf: x.peg_fwd, peg3: x.peg_cagr3, peg5: x.peg_cagr5,
+               pegl: x.peg_lin, fpe: x.fwd_pe });
   }
   return out;
 }
@@ -189,6 +192,11 @@ const FILTER_FIELDS = [
   ["shy",  "Share count change y/y, %", "pct"],
   ["eps",  "EPS (TTM), $", "x"],
   ["close","Price, $", "x"],
+  ["pegf", "Forward PEG (Alpha Vantage)", "x"],
+  ["peg3", "PEG (3y EPS CAGR)", "x"],
+  ["peg5", "PEG (5y EPS CAGR)", "x"],
+  ["pegl", "PEG (10y linear %EPS)", "x"],
+  ["fpe",  "Forward P/E (Alpha Vantage)", "x"],
 ];
 const NFILT = 4;
 function buildFiltRows() {
@@ -378,8 +386,8 @@ Promise.all([
 })
 .catch(e => { $("status").textContent = "Failed to load data (" + e.message + ")."; });
 </script>
-<script src="chat.js?v=v1.21.0" defer></script>
-<script src="menu.js?v=v1.21.0" defer></script>
-<script src="stocklab.js?v=v1.21.0" defer></script>
+<script src="chat.js?v=v1.22.0" defer></script>
+<script src="menu.js?v=v1.22.0" defer></script>
+<script src="stocklab.js?v=v1.22.0" defer></script>
 </body>
 </html>

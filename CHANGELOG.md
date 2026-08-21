@@ -21,6 +21,21 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.22.0 — 2026-08-20
+
+- **Macro page: 20y-NASDAQ ↔ 10y-S&P 500 toggle.** The engine now computes the
+  correlations against BOTH the NASDAQ Composite (~20y) and the real S&P 500
+  (~10y), and the heatmap has a toggle to switch. (S&P readings run modestly
+  stronger, as expected.) corr.json is now `{nasdaq:{…}, sp500:{…}}`.
+- **PEG columns on the Stock List** — Fwd PEG, Fwd P/E, PEG 3y, PEG 5y,
+  PEG lin, PEG 1y added as sortable columns (data from etl/peg.py).
+- **PEG filters on Rankings** — Forward PEG, PEG 3y/5y/lin added as
+  stackable filter levels (e.g. rank by %EPS, filter Forward PEG ≤ 1.5).
+- **Macro refresh automated** — a monthly PC scheduled task ("StockLab Macro
+  Refresh") regenerates the FRED data and pushes it; the FRED key stays on the
+  PC (the GitHub PAT lacks Actions-secrets permission, and keeping the key
+  local is cleaner anyway).
+
 ## v1.21.0 — 2026-08-20
 
 - **New Macro page** (`macro.html`, ☰ menu → "Macro & correlations"):

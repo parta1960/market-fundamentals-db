@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — Macro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="version.js?v=v1.21.0"></script>
-<script src="vendor/chart.umd.min.js?v=v1.21.0"></script>
+<script src="version.js?v=v1.22.0"></script>
+<script src="vendor/chart.umd.min.js?v=v1.22.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -45,6 +45,11 @@
   .cwrap { position:relative; height:280px; background:var(--surface);
     border:1px solid var(--border); border-radius:8px; padding:10px 12px; max-width:1000px; }
   .cwrap h3 { margin:0 0 6px; font-size:13px; }
+  .mktbtn { background:var(--surface); color:var(--ink2); border:1px solid var(--border);
+    padding:3px 10px; font-size:11.5px; cursor:pointer; }
+  .mktbtn:first-of-type { border-radius:6px 0 0 6px; }
+  .mktbtn:last-of-type { border-radius:0 6px 6px 0; border-left:none; }
+  .mktbtn.on { color:var(--accent); border-color:var(--accent); }
   #status { padding:16px 24px; color:var(--ink2); }
   footer { color:var(--ink3); font-size:11.5px; padding:10px 24px 26px; max-width:1000px; }
   footer a { color:var(--accent); text-decoration:none; }
@@ -76,7 +81,9 @@
   <span><span class="sw" style="background:#161b22;border:1px solid var(--border)"></span> ~0</span>
   <span><span class="sw" style="background:rgba(63,185,80,.30)"></span> weak +</span>
   <span><span class="sw" style="background:rgba(63,185,80,.85)"></span> +1 (together)</span>
-  <span id="mktnote" style="margin-left:auto"></span>
+  <span style="margin-left:auto">vs&nbsp;
+    <button class="mktbtn on" id="mkNasdaq">20y · NASDAQ</button><button class="mktbtn" id="mkSp">10y · S&amp;P 500</button>
+  </span>
 </div>
 
 <div class="wrap"><table id="t"><thead></thead><tbody></tbody></table></div>
@@ -89,13 +96,14 @@
 
 <footer id="foot"></footer>
 
-<script src="chat.js?v=v1.21.0" defer></script>
-<script src="menu.js?v=v1.21.0" defer></script>
-<script src="stocklab.js?v=v1.21.0" defer></script>
+<script src="chat.js?v=v1.22.0" defer></script>
+<script src="menu.js?v=v1.22.0" defer></script>
+<script src="stocklab.js?v=v1.22.0" defer></script>
 <script>
 const $ = id => document.getElementById(id);
 const LAGLBL = { l0: "Same mo", l1: "+1m", l3: "+3m", l6: "+6m", l12: "+12m" };
 let META = null, CORR = null, SERIES = null, chart = null;
+let WHICH = "nasdaq";   // v1.22.0: which market the heatmap correlates against
 
 function cellColor(r) {
   if (r === null || r === undefined) return "transparent";
@@ -113,8 +121,9 @@ function build() {
   let h = "";
   for (const cat of Object.keys(byCat)) {
     h += `<tr class="cat"><td>${cat}</td>${lags.map(() => "<td></td>").join("")}<td></td></tr>`;
+    const CC = CORR[WHICH] || {};
     for (const s of byCat[cat]) {
-      const cc = CORR[s.id] || {};
+      const cc = CC[s.id] || {};
       h += `<tr><td class="name" data-id="${s.id}" title="${s.id} — click to chart vs market">${s.label}</td>` +
         lags.map(l => {
           const r = cc[l];
@@ -137,10 +146,12 @@ async function loadSeries() {
 
 async function showChart(id, label) {
   const s = await loadSeries();
-  const macro = s[id], mkt = s._MKT_;
+  const mktId = WHICH === "sp500" ? "_SP500_" : "_MKT_";
+  const macro = s[id], mkt = s[mktId] || s._MKT_;
   if (!macro) return;
+  const mktName = META.markets ? META.markets[WHICH] : META.market;
   $("chartwrap").classList.remove("hide");
-  $("chTitle").textContent = label + "  vs  the market (" + META.market + ")";
+  $("chTitle").textContent = label + "  vs  the market (" + mktName + ")";
   const mm = macro.map(p => p[0]);
   const labels = mm;
   const macroData = macro.map(p => p[1]);
@@ -152,7 +163,7 @@ async function showChart(id, label) {
     data: { labels, datasets: [
       { label: label, data: macroData, yAxisID: "y", borderColor: "#58a6ff",
         borderWidth: 1.6, pointRadius: 0, spanGaps: true },
-      { label: "Market (" + META.market + ")", data: mktData, yAxisID: "y2",
+      { label: "Market (" + mktName + ")", data: mktData, yAxisID: "y2",
         borderColor: "#9aa4b2", borderWidth: 1.4, pointRadius: 0, spanGaps: true, borderDash: [4, 3] },
     ] },
     options: { responsive: true, maintainAspectRatio: false, animation: false,
@@ -171,11 +182,19 @@ Promise.all([
   fetch("data/macro/meta.json").then(r => r.json()),
   fetch("data/macro/corr.json").then(r => r.json()),
 ]).then(([m, c]) => {
-  META = m; CORR = c;
+  META = m;
+  CORR = (c.nasdaq || c.sp500) ? c : { nasdaq: c, sp500: {} };
   $("asof").textContent = m.asof || "?";
-  $("mktnote").textContent = "market proxy: " + m.market;
-  build();
-  $("status").textContent = `${m.series.length} indicators · monthly change vs market return · ~20 years`;
+  const setMkt = w => { WHICH = w;
+    $("mkNasdaq").classList.toggle("on", w === "nasdaq");
+    $("mkSp").classList.toggle("on", w === "sp500");
+    build();
+    $("status").textContent = `${m.series.length} indicators · vs ` +
+      (w === "sp500" ? "S&P 500 · ~10 years" : "NASDAQ · ~20 years");
+  };
+  $("mkNasdaq").onclick = () => setMkt("nasdaq");
+  $("mkSp").onclick = () => setMkt("sp500");
+  setMkt("nasdaq");
   $("foot").innerHTML =
     "Correlation of each indicator's monthly change against the market's monthly " +
     "return, at 0/1/3/6/12-month leads, ~20 years of monthly data. <b>Market proxy: " +
