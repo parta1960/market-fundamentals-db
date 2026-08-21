@@ -21,6 +21,16 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.23.0 — 2026-08-20
+
+- **Site password gate** (`gate.js`, loaded first on every page). Until the
+  StockLab password is entered, an opaque overlay hides the site; on success a
+  flag is remembered on that device. Only the password's SHA-256 hash is
+  embedded (one-way). This is LIGHT protection suited to public market data —
+  it deters casual visitors but the page content still lives in the source, so
+  it is not cryptographically private (that would need StatiCrypt-style
+  page encryption). Same password as the AI assistant.
+
 ## v1.22.0 — 2026-08-20
 
 - **Macro page: 20y-NASDAQ ↔ 10y-S&P 500 toggle.** The engine now computes the
