@@ -1,8 +1,13 @@
 # StockLab — Handover
 
 **What it is:** a fundamentals + valuation database and screener for the
-S&P 500 + Nasdaq-100 (~518 tickers), updated automatically every weekday after
-the US close, with a static web front-end on GitHub Pages. Current version is
+S&P 500 + Nasdaq-100 + Russell 1000 + Russell 2000 (**2,992 tickers**; ~2,972
+with live ratios as of v1.24.0), updated automatically every weekday after the
+US close, with a static web front-end on GitHub Pages. Russell membership is a
+committed snapshot (`data/universe/russell_membership.csv`, from iShares
+IWB/IWM holdings; `universe.py:_load_russell()` unions it into the Wikipedia
+S&P/Nasdaq scrape) — refresh at annual reconstitution via a browser, since
+iShares blocks CI/server downloads. Current version is
 in `docs/version.js` (`STOCKLAB_VERSION`); see `CHANGELOG.md` for the full
 per-release history. This file is the reproduce-and-continue guide.
 

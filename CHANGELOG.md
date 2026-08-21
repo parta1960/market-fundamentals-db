@@ -21,6 +21,27 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.24.0 — 2026-08-21
+
+- **Russell 1000 + 2000 expansion.** The universe grows from 518 tickers
+  (S&P 500 + Nasdaq-100) to **2,992** — now S&P 500 ∪ Nasdaq-100 ∪
+  Russell 1000 (IWB) ∪ Russell 2000 (IWM). **2,972 names carry live valuation
+  ratios** on the screener (99.3% coverage; the rest are too newly listed or
+  lack an Alpha Vantage / SEC match).
+- **Membership source:** iShares IWB/IWM `latest-holdings.csv` (as of
+  2026-08-20), committed as `data/universe/russell_membership.csv`. iShares
+  blocks server-side/CI downloads with an HTML consent wall, so the file is
+  captured via a real browser and committed; `universe.py` unions it in
+  (`_load_russell()`) rather than fetching iShares from GitHub Actions.
+- **Share-class tickers** normalized to SEC-canonical form via a squashed-key
+  join to SEC `company_tickers.json` (iShares `MOGA` → `MOG-A`, `HEIA` →
+  `HEI-A`, plus BF-B, LEN-B, GEF-B, CRD-A, BH-A, UHAL-B).
+- **Validated before scaling:** a 50-name pilot ran through the real ETL;
+  price and market-cap matched stockanalysis.com exactly on all spot-checks,
+  revenue on 11/13. Known soft spots (unchanged from the prior universe):
+  financials/REITs (definitional EPS/revenue) and a TTM revenue-gap when a
+  recent quarter lacks a revenue line.
+
 ## v1.23.0 — 2026-08-20
 
 - **Site password gate** (`gate.js`, loaded first on every page). Until the
