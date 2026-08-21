@@ -21,6 +21,26 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.21.0 — 2026-08-20
+
+- **New Macro page** (`macro.html`, ☰ menu → "Macro & correlations"):
+  correlation study of ~37 macroeconomic indicators (Fed funds, the yield
+  curve, CPI/PCE, payrolls, housing, credit spreads, VIX, the dollar, …)
+  against the stock market's monthly return, over ~20 years, at lead/lag
+  0/1/3/6/12 months. Colour-coded heatmap with fixed header row + first
+  column; click any indicator to chart it against the market.
+- **Macro data from FRED** — a new `~/.mfdb/fred_pull.py` pulls the series,
+  computes the correlations, and writes `docs/data/macro/{meta,series,corr}.json`.
+  The FRED key stays server-side (never in the repo or browser); the page
+  loads only static JSON.
+- Market proxy note: FRED carries the S&P 500 for only ~10 years (copyright),
+  so the 20-year study uses the NASDAQ Composite; over the 10-year overlap
+  NASDAQ and S&P 500 monthly returns correlate +0.94 and the macro
+  correlations are nearly identical (verified). Contemporaneous results are
+  economically sensible: VIX −0.68, financial stress −0.57, dollar −0.53,
+  credit spread −0.51, financial conditions −0.49; inflation breakeven +0.43.
+- Added `HANDOVER.md` (repo reproduce-and-continue guide, per standards).
+
 ## v1.20.0 — 2026-08-18
 
 - **PEG ratios added to the database** (`etl/peg.py`, written into

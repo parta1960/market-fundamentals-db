@@ -51,6 +51,7 @@
     doc: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>'),
     book: ic('<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'),
     trash: ic('<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>'),
+    pulse: ic('<path d="M3 12h4l3 8 4-16 3 8h4"/>'),
   };
 
   const btn = document.createElement("button");
@@ -75,6 +76,7 @@
     <a class="mi" href="index.html">${IC.rank}Rankings (home)</a>
     <a class="mi" href="screener.html">${IC.list}Stock List</a>
     <a class="mi" href="charts.html">${IC.chart}History Charts</a>
+    <a class="mi" href="macro.html">${IC.pulse}Macro &amp; correlations</a>
     <div id="slMenuDyn"></div>
     <a class="mi" target="_blank" rel="noopener"
        href="https://github.com/parta1960/market-fundamentals-db/blob/main/CHANGELOG.md">${IC.doc}Changelog (what's new)</a>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StockLab — Macro</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
+<script src="version.js?v=v1.21.0"></script>
+<script src="vendor/chart.umd.min.js?v=v1.21.0"></script>
+<style>
+  :root {
+    --bg:#0d1117; --surface:#161b22; --border:#30363d;
+    --ink:#e6edf3; --ink2:#9aa4b2; --ink3:#6e7681;
+    --accent:#58a6ff; --pos:#3fb950; --neg:#f85149;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:14px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header { padding:20px 24px 6px; }
+  h1 { font-size:19px; margin:0 0 2px; font-weight:600; }
+  .sub { color:var(--ink2); font-size:12.5px; }
+  .sub a { color:var(--accent); text-decoration:none; }
+  .intro { color:var(--ink2); font-size:12.5px; padding:6px 24px 4px; max-width:1000px; }
+  .intro b { color:var(--ink); }
+  .legend { display:flex; align-items:center; gap:10px; padding:6px 24px; font-size:11.5px; color:var(--ink2); flex-wrap:wrap; }
+  .legend .sw { display:inline-block; width:20px; height:12px; border-radius:2px; vertical-align:middle; }
+  .wrap { overflow:auto; max-height:calc(100vh - 300px); padding:0 24px 8px; }
+  table { border-collapse:separate; border-spacing:0; width:100%; min-width:640px; }
+  th, td { padding:6px 10px; text-align:center; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  th { color:var(--ink2); font-size:11.5px; font-weight:600; border-bottom:1px solid var(--border);
+       position:sticky; top:0; background:var(--bg); z-index:2; }
+  /* fixed first column + header row (convention) */
+  th:first-child, td:first-child { position:sticky; left:0; background:var(--bg);
+    text-align:left; z-index:1; min-width:210px; }
+  thead th:first-child { z-index:3; }
+  td { border-bottom:1px solid #21262d; font-size:12px; }
+  td.name { cursor:pointer; }
+  td.name:hover { color:var(--accent); }
+  tr.cat td { background:#10151c; color:var(--ink3); font-size:11px; text-transform:uppercase;
+    letter-spacing:.05em; text-align:left; cursor:default; }
+  td.n { color:var(--ink3); font-size:11px; }
+  .cell { border-radius:3px; padding:2px 0; }
+  #chartwrap { padding:6px 24px 4px; }
+  #chartwrap.hide { display:none; }
+  .cwrap { position:relative; height:280px; background:var(--surface);
+    border:1px solid var(--border); border-radius:8px; padding:10px 12px; max-width:1000px; }
+  .cwrap h3 { margin:0 0 6px; font-size:13px; }
+  #status { padding:16px 24px; color:var(--ink2); }
+  footer { color:var(--ink3); font-size:11.5px; padding:10px 24px 26px; max-width:1000px; }
+  footer a { color:var(--accent); text-decoration:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>StockLab · Macro</h1>
+  <div class="sub"><span class="sl-ver"></span> ·
+    <a href="index.html">🏆 Rankings</a> · <a href="screener.html">📋 Stock List</a> ·
+    <a href="charts.html">📈 History charts</a> ·
+    how macro conditions line up with the stock market · data through
+    <span id="asof">…</span></div>
+</header>
+
+<div class="intro">
+  Each cell is the <b>correlation</b> between a macroeconomic series' monthly
+  change and the <b>market's monthly return</b>, over ~20 years. Columns are
+  <b>lead/lag</b>: the <b>0</b> column is same-month (coincident); <b>+1m … +12m</b>
+  ask whether this month's macro move lines up with the market's return
+  <i>that many months later</i> — i.e. whether the indicator tends to
+  <i>lead</i> the market. Positive (green) = they move together; negative
+  (red) = they move opposite. Rate/spread series use the change in level; index
+  series use the % change. Click any indicator to chart it against the market.
+</div>
+<div class="legend">
+  <span><span class="sw" style="background:rgba(248,81,73,.85)"></span> −1 (opposite)</span>
+  <span><span class="sw" style="background:rgba(248,81,73,.30)"></span> weak −</span>
+  <span><span class="sw" style="background:#161b22;border:1px solid var(--border)"></span> ~0</span>
+  <span><span class="sw" style="background:rgba(63,185,80,.30)"></span> weak +</span>
+  <span><span class="sw" style="background:rgba(63,185,80,.85)"></span> +1 (together)</span>
+  <span id="mktnote" style="margin-left:auto"></span>
+</div>
+
+<div class="wrap"><table id="t"><thead></thead><tbody></tbody></table></div>
+
+<div id="chartwrap" class="hide">
+  <div class="cwrap"><h3 id="chTitle"></h3><canvas id="ch"></canvas></div>
+</div>
+
+<div id="status">Loading macro data…</div>
+
+<footer id="foot"></footer>
+
+<script src="chat.js?v=v1.21.0" defer></script>
+<script src="menu.js?v=v1.21.0" defer></script>
+<script src="stocklab.js?v=v1.21.0" defer></script>
+<script>
+const $ = id => document.getElementById(id);
+const LAGLBL = { l0: "Same mo", l1: "+1m", l3: "+3m", l6: "+6m", l12: "+12m" };
+let META = null, CORR = null, SERIES = null, chart = null;
+
+function cellColor(r) {
+  if (r === null || r === undefined) return "transparent";
+  const a = Math.min(1, Math.abs(r)) * 0.85;
+  return r < 0 ? `rgba(248,81,73,${a})` : `rgba(63,185,80,${a})`;
+}
+
+function build() {
+  const lags = META.lags.map(k => "l" + k);
+  $("t").querySelector("thead").innerHTML = "<tr><th>Indicator</th>" +
+    lags.map(l => `<th title="market return ${l === "l0" ? "same month" : LAGLBL[l] + " later"}">${LAGLBL[l]}</th>`).join("") +
+    "<th>months</th></tr>";
+  const byCat = {};
+  META.series.forEach(s => (byCat[s.cat] = byCat[s.cat] || []).push(s));
+  let h = "";
+  for (const cat of Object.keys(byCat)) {
+    h += `<tr class="cat"><td>${cat}</td>${lags.map(() => "<td></td>").join("")}<td></td></tr>`;
+    for (const s of byCat[cat]) {
+      const cc = CORR[s.id] || {};
+      h += `<tr><td class="name" data-id="${s.id}" title="${s.id} — click to chart vs market">${s.label}</td>` +
+        lags.map(l => {
+          const r = cc[l];
+          return `<td><div class="cell" style="background:${cellColor(r)}">${r == null ? "–" : (r >= 0 ? "+" : "−") + Math.abs(r).toFixed(2)}</div></td>`;
+        }).join("") +
+        `<td class="n">${cc.n ?? "–"}</td></tr>`;
+    }
+  }
+  $("t").querySelector("tbody").innerHTML = h;
+  document.querySelectorAll("td.name").forEach(td =>
+    td.onclick = () => showChart(td.dataset.id, td.textContent));
+}
+
+async function loadSeries() {
+  if (SERIES) return SERIES;
+  const r = await fetch("data/macro/series.json");
+  SERIES = await r.json();
+  return SERIES;
+}
+
+async function showChart(id, label) {
+  const s = await loadSeries();
+  const macro = s[id], mkt = s._MKT_;
+  if (!macro) return;
+  $("chartwrap").classList.remove("hide");
+  $("chTitle").textContent = label + "  vs  the market (" + META.market + ")";
+  const mm = macro.map(p => p[0]);
+  const labels = mm;
+  const macroData = macro.map(p => p[1]);
+  const mktMap = Object.fromEntries(mkt);
+  const mktData = mm.map(m => mktMap[m] ?? null);
+  if (chart) chart.destroy();
+  chart = new Chart($("ch"), {
+    type: "line",
+    data: { labels, datasets: [
+      { label: label, data: macroData, yAxisID: "y", borderColor: "#58a6ff",
+        borderWidth: 1.6, pointRadius: 0, spanGaps: true },
+      { label: "Market (" + META.market + ")", data: mktData, yAxisID: "y2",
+        borderColor: "#9aa4b2", borderWidth: 1.4, pointRadius: 0, spanGaps: true, borderDash: [4, 3] },
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: { ticks: { color: "#9aa4b2", maxTicksLimit: 10, callback(v){ return this.getLabelForValue(v).slice(0,4); } }, grid: { color: "#21262d" } },
+        y: { position: "left", ticks: { color: "#58a6ff", maxTicksLimit: 6 }, grid: { color: "#21262d" } },
+        y2: { position: "right", ticks: { color: "#9aa4b2", maxTicksLimit: 6 }, grid: { display: false } },
+      },
+      plugins: { legend: { labels: { color: "#9aa4b2", boxWidth: 12, boxHeight: 3 } } } },
+  });
+  $("chartwrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+Promise.all([
+  fetch("data/macro/meta.json").then(r => r.json()),
+  fetch("data/macro/corr.json").then(r => r.json()),
+]).then(([m, c]) => {
+  META = m; CORR = c;
+  $("asof").textContent = m.asof || "?";
+  $("mktnote").textContent = "market proxy: " + m.market;
+  build();
+  $("status").textContent = `${m.series.length} indicators · monthly change vs market return · ~20 years`;
+  $("foot").innerHTML =
+    "Correlation of each indicator's monthly change against the market's monthly " +
+    "return, at 0/1/3/6/12-month leads, ~20 years of monthly data. <b>Market proxy: " +
+    m.market + "</b> — FRED only carries the S&P 500 for ~10 years (copyright), " +
+    "so the NASDAQ Composite is used for the full 20-year window; over the 10-year " +
+    "overlap NASDAQ and S&P 500 monthly returns correlate +0.94 and the macro " +
+    "correlations are nearly identical (S&P readings run modestly stronger). " +
+    "Correlation is not causation, relationships shift by regime (2008, COVID, the " +
+    "rate cycle are all in here), and a strong number does not by itself predict " +
+    "returns. Source: Federal Reserve (FRED). Educational tool, not investment advice.";
+}).catch(e => { $("status").textContent =
+  "Macro data not available yet (" + e.message + "). It is generated from FRED and deployed separately."; });
+</script>
+</body>
+</html>
