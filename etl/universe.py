@@ -24,6 +24,19 @@ from config import (CIK_OVERRIDES, NDX_EXPECTED_RANGE, NDX_URL, SP500_EXPECTED_R
 
 PARQUET = "data/parquet"
 UNIVERSE_DIR = "data/universe"
+# Committed Russell 1000 (IWB) + 2000 (IWM) membership snapshot with
+# SEC-canonical tickers + CIKs. Built from the iShares holdings CSVs via a
+# browser (iShares blocks CI/urllib), so the pipeline reads a static file
+# rather than fetching iShares from GitHub Actions. Refresh at reconstitution.
+RUSSELL_FILE = f"{UNIVERSE_DIR}/russell_membership.csv"
+
+
+def _load_russell() -> pd.DataFrame:
+    if not os.path.exists(RUSSELL_FILE):
+        return pd.DataFrame(columns=["ticker", "name", "index", "cik"])
+    df = pd.read_csv(RUSSELL_FILE, dtype=str).fillna("")
+    df["ticker"] = df["ticker"].map(_norm)
+    return df
 
 
 def _tables(url: str) -> list[pd.DataFrame]:
@@ -77,18 +90,33 @@ def build(as_of: str | None = None) -> pd.DataFrame:
     if not (NDX_EXPECTED_RANGE[0] <= n_ndx <= NDX_EXPECTED_RANGE[1]):
         raise RuntimeError(f"Nasdaq-100 scrape suspicious: {n_ndx} tickers")
 
-    membership = pd.concat([
+    russ = _load_russell()
+
+    memb = [
         pd.DataFrame({"ticker": sp.ticker, "index_name": "SP500", "as_of": as_of}),
         pd.DataFrame({"ticker": ndx.ticker, "index_name": "NDX100", "as_of": as_of}),
-    ], ignore_index=True)
+    ]
+    for idx_tag, name in (("IWB", "RUSSELL1000"), ("IWM", "RUSSELL2000")):
+        sub = russ[russ["index"] == idx_tag]
+        if not sub.empty:
+            memb.append(pd.DataFrame({"ticker": sub.ticker, "index_name": name,
+                                      "as_of": as_of}))
+    membership = pd.concat(memb, ignore_index=True)
 
-    # unique universe with names + CIKs
-    uni = pd.concat([sp[["ticker", "name"]], ndx[["ticker", "name"]]],
-                    ignore_index=True).drop_duplicates("ticker").reset_index(drop=True)
+    # unique universe with names + CIKs (S&P 500 + Nasdaq-100 + Russell 1000/2000)
+    frames = [sp[["ticker", "name"]], ndx[["ticker", "name"]]]
+    if not russ.empty:
+        frames.append(russ[["ticker", "name"]])
+    uni = pd.concat(frames, ignore_index=True).drop_duplicates("ticker").reset_index(drop=True)
     cik = edgar_client.ticker_to_cik_map()
     uni["cik"] = uni.ticker.map(cik)
     missing = uni.cik.isna()
     uni.loc[missing, "cik"] = uni.loc[missing, "ticker"].map(CIK_OVERRIDES)
+    # backfill any still-missing CIKs from the Russell file's own CIK column
+    if not russ.empty:
+        rcik = {t: c for t, c in zip(russ.ticker, russ.cik) if c}
+        still = uni.cik.isna()
+        uni.loc[still, "cik"] = uni.loc[still, "ticker"].map(rcik)
 
     os.makedirs(PARQUET, exist_ok=True)
     os.makedirs(UNIVERSE_DIR, exist_ok=True)
@@ -102,8 +130,9 @@ def build(as_of: str | None = None) -> pd.DataFrame:
 
     uni.to_csv(f"{UNIVERSE_DIR}/universe_{as_of}.csv", index=False)
     uni.to_csv(f"{UNIVERSE_DIR}/universe_latest.csv", index=False)
-    print(f"Universe: {len(uni)} unique tickers ({n_sp} SP500, {n_ndx} NDX100), "
-          f"{uni.cik.notna().sum()} with CIK")
+    n_russ = len(russ)
+    print(f"Universe: {len(uni)} unique tickers ({n_sp} SP500, {n_ndx} NDX100, "
+          f"{n_russ} Russell rows), {uni.cik.notna().sum()} with CIK")
     return uni
 
 
