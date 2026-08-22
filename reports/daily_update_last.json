@@ -1,11 +1,14 @@
 {
   "date": "2026-08-21",
-  "prices_ok": 2947,
+  "prices_ok": 2984,
   "failed": {
-    "INH": "AVError: TIME_SERIES_DAILY_ADJUSTED/INH: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "LYV": "truncated refresh (previous history kept)",
-    "LMT": "truncated refresh (previous history kept)",
+    "INH": "retry: AVError: TIME_SERIES_DAILY_ADJUSTED/INH: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "AKE": "retry: AVError: TIME_SERIES_DAILY_ADJUSTED/AKE: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "ADRO": "retry: AVError: TIME_SERIES_DAILY_ADJUSTED/ADRO: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "P5N994": "retry: AVError: TIME_SERIES_DAILY_ADJUSTED/P5N994: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "VLTO": "truncated refresh (previous history kept)",
     "VRSN": "truncated refresh (previous history kept)",
-    "VLTO": "truncated refresh (previous history kept)"
+    "LYV": "truncated refresh (previous history kept)",
+    "LMT": "truncated refresh (previous history kept)"
   }
 }
