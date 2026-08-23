@@ -11,6 +11,15 @@ iShares blocks CI/server downloads. Current version is
 in `docs/version.js` (`STOCKLAB_VERSION`); see `CHANGELOG.md` for the full
 per-release history. This file is the reproduce-and-continue guide.
 
+Each deep-dive page opens with an income-statement flow diagram
+(`docs/incomeflow.js`, v1.25.0). Geometry rule: x = level in the income
+statement, y = inherited from the parent the branch splits from, one dollar
+scale throughout. Segment detail is optional per ticker via
+`docs/data/segments/<TICKER>.json` (values may be `usd_millions`; the renderer
+normalises). After an ETL change that only alters how existing data is
+exported, dispatch `rebuild-json.yml` rather than the daily update — it skips
+the price pull and finishes in minutes.
+
 ## Goals
 - Clean, split-adjusted quarterly fundamentals + daily prices for the index,
   with derived per-share series, margins, growth rates, valuation ratios, and

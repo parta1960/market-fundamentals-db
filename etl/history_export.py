@@ -62,6 +62,11 @@ METRICS = [
     ("operating_income", "Operating income", "usd", "Income statement"),
     ("net_income", "Net income (quarterly)", "usd", "Income statement"),
     ("net_income_ttm", "Net income (TTM)", "usd", "Income statement"),
+    ("cost_of_revenue", "Cost of revenue", "usd", "Income statement"),
+    ("rnd", "Research & development", "usd", "Income statement"),
+    ("sga", "Selling, general & admin", "usd", "Income statement"),
+    ("pretax_income", "Pre-tax income", "usd", "Income statement"),
+    ("tax_expense", "Income tax expense", "usd", "Income statement"),
     ("ocf", "Operating cash flow", "usd", "Cash flow"),
     ("capex", "Capital expenditures", "usd", "Cash flow"),
     ("fcf", "Free cash flow (quarterly)", "usd", "Cash flow"),
@@ -93,6 +98,15 @@ METRICS = [
 EXTRA_ITEMS = {
     "cashAndCashEquivalentsAtCarryingValue": "cash",
     "shortLongTermDebtTotal": "total_debt",
+    # income-statement detail (v1.25.0) — powers the income-flow diagram on the
+    # deep-dive page. Cost of revenue / opex are also derivable from the gross
+    # and operating margins, but the tax and pre-tax lines are not, so they are
+    # pulled straight from the as-reported statement.
+    "costOfRevenue": "cost_of_revenue",
+    "researchAndDevelopment": "rnd",
+    "sellingGeneralAndAdministrative": "sga",
+    "incomeBeforeTax": "pretax_income",
+    "incomeTaxExpense": "tax_expense",
 }
 
 

@@ -21,6 +21,29 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.25.0 — 2026-08-21
+
+- **“How they make money” income-statement flow on every deep-dive page**
+  (`docs/incomeflow.js`). A Sankey where **x is the level in the income
+  statement and y is inherited from the parent the branch splits from**: the
+  surviving profit line is top-anchored at each level and every cost peels off
+  directly beneath it, so vertical position encodes the hierarchy. All bars
+  share one dollar scale, so each split is visually to scale.
+- **Works for loss-makers.** A Sankey cannot draw a negative branch (children
+  would exceed the parent), so when a profit line is <= 0 the parent flows
+  entirely into the cost side and the shortfall is drawn as a separate red
+  “Operating loss” / “Net loss” node rather than a broken ribbon.
+- **Optional segment detail** (the left-hand column) from
+  `docs/data/segments/<TICKER>.json`; the diagram starts at total revenue when
+  a ticker has none. Seeded with GOOGL/GOOG from the 10-Q revenue
+  disaggregation note (segments reconcile exactly to total revenue).
+- **New income-statement series** exported for every ticker: cost of revenue,
+  R&D, SG&A, pre-tax income and income tax expense, so the below-the-line part
+  of the flow is as-reported rather than inferred.
+- **New `rebuild-json.yml` workflow** — regenerates `docs/data/*.json` from the
+  parquet already in the repo (derived → history_export → peg) with no price
+  API calls, finishing in minutes instead of the ~80 the daily update needs.
+
 ## v1.24.0 — 2026-08-21
 
 - **Russell 1000 + 2000 expansion.** The universe grows from 518 tickers
