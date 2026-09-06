@@ -1,8 +1,8 @@
-# Full backfill QA report (v0.2) — 2026-08-30 19:09 UTC
+# Full backfill QA report (v0.2) — 2026-09-06 18:13 UTC
 
 - Universe size: **2992**
-- Completed tickers: **2988**
-- Failed tickers: **4**
+- Completed tickers: **2987**
+- Failed tickers: **5**
 - Run incomplete (budget hit): **False**
 
 ## EDGAR shares coverage
@@ -16,6 +16,7 @@
 - ADRO: `AVError: TIME_SERIES_DAILY_ADJUSTED/ADRO: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 - AKE: `AVError: TIME_SERIES_DAILY_ADJUSTED/AKE: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 - INH: `AVError: TIME_SERIES_DAILY_ADJUSTED/INH: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
+- NHP: `AVError: TIME_SERIES_DAILY_ADJUSTED/NHP: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 - P5N994: `AVError: TIME_SERIES_DAILY_ADJUSTED/P5N994: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 
 Full per-ticker census: `reports/coverage_census_v0.2.csv`
@@ -23,8 +24,8 @@ Full per-ticker census: `reports/coverage_census_v0.2.csv`
 ## Aggregate coverage
 
 - Median AV quarters: 81
-- Tickers with >=40 quarters (10y): 2229/2988
-- Median price days: 4642
+- Tickers with >=40 quarters (10y): 2224/2987
+- Median price days: 4648
 - Median EDGAR share points: 231
 
 ## CSCO validation vs Yahoo reference
