@@ -1,12 +1,14 @@
 {
-  "date": "2026-09-03",
-  "prices_ok": 2481,
+  "date": "2026-09-09",
+  "prices_ok": 2579,
   "failed": {
-    "XYZ": "AVError: TIME_SERIES_DAILY_ADJUSTED/XYZ: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "BNY": "AVError: TIME_SERIES_DAILY_ADJUSTED/BNY: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "BA": "AVError: TIME_SERIES_DAILY_ADJUSTED/BA: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "MLYS": "AVError: TIME_SERIES_DAILY_ADJUSTED/MLYS: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "STUB": "AVError: TIME_SERIES_DAILY_ADJUSTED/STUB: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "SAFT": "AVError: TIME_SERIES_DAILY_ADJUSTED/SAFT: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED."
+    "EXE": "AVError: TIME_SERIES_DAILY_ADJUSTED/EXE: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "EXPE": "AVError: TIME_SERIES_DAILY_ADJUSTED/EXPE: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "EXPD": "AVError: TIME_SERIES_DAILY_ADJUSTED/EXPD: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "EXR": "AVError: TIME_SERIES_DAILY_ADJUSTED/EXR: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "IDT": "AVError: TIME_SERIES_DAILY_ADJUSTED/IDT: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "DEA": "AVError: TIME_SERIES_DAILY_ADJUSTED/DEA: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "NWPX": "AVError: TIME_SERIES_DAILY_ADJUSTED/NWPX: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "NHP": "AVError: TIME_SERIES_DAILY_ADJUSTED/NHP: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED."
   }
 }
