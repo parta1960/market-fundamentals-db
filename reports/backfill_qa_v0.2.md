@@ -1,4 +1,4 @@
-# Full backfill QA report (v0.2) — 2026-09-06 18:13 UTC
+# Full backfill QA report (v0.2) — 2026-09-13 17:45 UTC
 
 - Universe size: **2992**
 - Completed tickers: **2987**
@@ -24,8 +24,8 @@ Full per-ticker census: `reports/coverage_census_v0.2.csv`
 ## Aggregate coverage
 
 - Median AV quarters: 81
-- Tickers with >=40 quarters (10y): 2224/2987
-- Median price days: 4648
+- Tickers with >=40 quarters (10y): 2226/2987
+- Median price days: 4652
 - Median EDGAR share points: 231
 
 ## CSCO validation vs Yahoo reference
