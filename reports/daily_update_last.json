@@ -1,14 +1,9 @@
 {
-  "date": "2026-09-09",
-  "prices_ok": 2579,
+  "date": "2026-09-18",
+  "prices_ok": 2512,
   "failed": {
-    "EXE": "AVError: TIME_SERIES_DAILY_ADJUSTED/EXE: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "EXPE": "AVError: TIME_SERIES_DAILY_ADJUSTED/EXPE: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "EXPD": "AVError: TIME_SERIES_DAILY_ADJUSTED/EXPD: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "EXR": "AVError: TIME_SERIES_DAILY_ADJUSTED/EXR: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "IDT": "AVError: TIME_SERIES_DAILY_ADJUSTED/IDT: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "DEA": "AVError: TIME_SERIES_DAILY_ADJUSTED/DEA: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "NWPX": "AVError: TIME_SERIES_DAILY_ADJUSTED/NWPX: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "HP": "AVError: TIME_SERIES_DAILY_ADJUSTED/HP: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "CDP": "AVError: TIME_SERIES_DAILY_ADJUSTED/CDP: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
     "NHP": "AVError: TIME_SERIES_DAILY_ADJUSTED/NHP: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED."
   }
 }
