@@ -1,4 +1,4 @@
-# Full backfill QA report (v0.2) — 2026-09-13 17:45 UTC
+# Full backfill QA report (v0.2) — 2026-09-20 17:58 UTC
 
 - Universe size: **2992**
 - Completed tickers: **2987**
@@ -7,7 +7,7 @@
 
 ## EDGAR shares coverage
 
-- Tickers with 0 EDGAR share points: 29 ['DGICA', 'ELE', 'FRBA', 'GEF', 'GEF-B', 'GFL', 'GRDN', 'GTXI', 'HIFS', 'HOLX', 'IMKTA', 'JBS', 'MC', 'NBN', 'NU', 'ODD', 'OZK', 'PAX', 'PDLI', 'PFBC']
+- Tickers with 0 EDGAR share points: 30 ['BSY', 'DGICA', 'ELE', 'FRBA', 'GEF', 'GEF-B', 'GFL', 'GRDN', 'GTXI', 'HIFS', 'HOLX', 'IMKTA', 'JBS', 'MC', 'NBN', 'NU', 'ODD', 'OZK', 'PAX', 'PDLI']
 - META: **124** share points (v0.1 was META=0, XOM=7)
 - XOM: **15** share points (v0.1 was META=0, XOM=7)
 
@@ -24,8 +24,8 @@ Full per-ticker census: `reports/coverage_census_v0.2.csv`
 ## Aggregate coverage
 
 - Median AV quarters: 81
-- Tickers with >=40 quarters (10y): 2226/2987
-- Median price days: 4652
+- Tickers with >=40 quarters (10y): 2227/2987
+- Median price days: 4655
 - Median EDGAR share points: 231
 
 ## CSCO validation vs Yahoo reference
