@@ -1,13 +1,13 @@
-# Full backfill QA report (v0.2) — 2026-09-20 17:58 UTC
+# Full backfill QA report (v0.2) — 2026-09-27 19:29 UTC
 
 - Universe size: **2992**
-- Completed tickers: **2987**
-- Failed tickers: **5**
+- Completed tickers: **2986**
+- Failed tickers: **6**
 - Run incomplete (budget hit): **False**
 
 ## EDGAR shares coverage
 
-- Tickers with 0 EDGAR share points: 30 ['BSY', 'DGICA', 'ELE', 'FRBA', 'GEF', 'GEF-B', 'GFL', 'GRDN', 'GTXI', 'HIFS', 'HOLX', 'IMKTA', 'JBS', 'MC', 'NBN', 'NU', 'ODD', 'OZK', 'PAX', 'PDLI']
+- Tickers with 0 EDGAR share points: 29 ['DGICA', 'ELE', 'FRBA', 'GEF', 'GEF-B', 'GFL', 'GRDN', 'GTXI', 'HIFS', 'HOLX', 'IMKTA', 'JBS', 'MC', 'NBN', 'NU', 'ODD', 'OZK', 'PAX', 'PDLI', 'PFBC']
 - META: **124** share points (v0.1 was META=0, XOM=7)
 - XOM: **15** share points (v0.1 was META=0, XOM=7)
 
@@ -15,6 +15,7 @@
 
 - ADRO: `AVError: TIME_SERIES_DAILY_ADJUSTED/ADRO: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 - AKE: `AVError: TIME_SERIES_DAILY_ADJUSTED/AKE: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
+- DOMO: `AVError: TIME_SERIES_DAILY_ADJUSTED/DOMO: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 - INH: `AVError: TIME_SERIES_DAILY_ADJUSTED/INH: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 - NHP: `AVError: TIME_SERIES_DAILY_ADJUSTED/NHP: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 - P5N994: `AVError: TIME_SERIES_DAILY_ADJUSTED/P5N994: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
@@ -24,8 +25,8 @@ Full per-ticker census: `reports/coverage_census_v0.2.csv`
 ## Aggregate coverage
 
 - Median AV quarters: 81
-- Tickers with >=40 quarters (10y): 2227/2987
-- Median price days: 4655
+- Tickers with >=40 quarters (10y): 2227/2986
+- Median price days: 4661
 - Median EDGAR share points: 231
 
 ## CSCO validation vs Yahoo reference
