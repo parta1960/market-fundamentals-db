@@ -1,9 +1,7 @@
 {
-  "date": "2026-09-18",
-  "prices_ok": 2512,
+  "date": "2026-10-08",
+  "prices_ok": 2495,
   "failed": {
-    "HP": "AVError: TIME_SERIES_DAILY_ADJUSTED/HP: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "CDP": "AVError: TIME_SERIES_DAILY_ADJUSTED/CDP: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
-    "NHP": "AVError: TIME_SERIES_DAILY_ADJUSTED/NHP: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED."
+    "PSKY": "AVError: TIME_SERIES_DAILY_ADJUSTED/PSKY: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED."
   }
 }
