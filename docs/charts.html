@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StockLab — History Charts</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
-<script src="gate.js?v=v1.25.0"></script>
-<script src="version.js?v=v1.25.0"></script>
-<script src="vendor/chart.umd.min.js?v=v1.25.0"></script>
-<script src="incomeflow.js?v=v1.25.0"></script>
+<script src="gate.js?v=v1.26.0"></script>
+<script src="version.js?v=v1.26.0"></script>
+<script src="vendor/chart.umd.min.js?v=v1.26.0"></script>
+<script src="incomeflow.js?v=v1.26.0"></script>
 <style>
   :root {
     --bg:#0d1117; --surface:#161b22; --border:#30363d;
@@ -791,8 +791,9 @@ fetch("data/history/manifest.json").then(r => r.json()).then(m => {
 }).catch(e => { $("status").textContent =
   "Failed to load manifest (" + e.message + "). The first daily run after deploy populates it."; });
 </script>
-<script src="chat.js?v=v1.25.0" defer></script>
-<script src="menu.js?v=v1.25.0" defer></script>
-<script src="stocklab.js?v=v1.25.0" defer></script>
+<script src="chat.js?v=v1.26.0" defer></script>
+<script src="menu.js?v=v1.26.0" defer></script>
+<script src="stocklab.js?v=v1.26.0" defer></script>
+<script src="update-check.js?v=v1.26.0" defer></script>
 </body>
 </html>

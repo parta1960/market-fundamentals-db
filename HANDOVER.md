@@ -9,7 +9,9 @@ IWB/IWM holdings; `universe.py:_load_russell()` unions it into the Wikipedia
 S&P/Nasdaq scrape) — refresh at annual reconstitution via a browser, since
 iShares blocks CI/server downloads. Current version is
 in `docs/version.js` (`STOCKLAB_VERSION`); see `CHANGELOG.md` for the full
-per-release history. This file is the reproduce-and-continue guide.
+per-release history. An open tab auto-detects a newer deploy and offers a
+one-click reload (`docs/update-check.js`, v1.26.0) — see UI conventions below.
+This file is the reproduce-and-continue guide.
 
 Each deep-dive page opens with an income-statement flow diagram
 (`docs/incomeflow.js`, v1.25.0). Geometry rule: x = level in the income
@@ -42,7 +44,8 @@ the price pull and finishes in minutes.
   per-stock history + AI analyst report; `macro.html` = macro/market
   correlations; `rankings.html` = redirect stub. Shared: `version.js`,
   `menu.js` (☰ menu), `stocklab.js` (favorites/portfolios/screens/sync),
-  `chat.js` (AI assistant), `vendor/chart.umd.min.js`.
+  `chat.js` (AI assistant), `update-check.js` (auto-update banner, v1.26.0),
+  `vendor/chart.umd.min.js`.
 - **AI proxy (Netlify, `proxy/`):** `stocklab-ai-proxy.netlify.app` holds the
   provider keys server-side (env vars) and gates on the StockLab password; ops
   `models`/`chat`/`sync_get`/`sync_put`. Cross-device state in Netlify Blobs.
@@ -82,6 +85,14 @@ the price pull and finishes in minutes.
   and first column (`position: sticky`). Every page carries the bottom AI
   chat box (`chat.js`). Menu order: Rankings (home) · Stock List · History
   Charts · Macro; plus Favorites / Portfolios / saved screens.
+- **Auto-update banner** (v1.26.0, `update-check.js`): every page polls
+  `version.js` (cache-busted, every 5 min + on tab focus) and, on a version
+  mismatch, shows a dismissible top banner offering a one-click reload —
+  GitHub Pages can't push to an already-open tab, so this is how a visitor
+  who leaves a tab open across a daily deploy finds out there's a newer
+  build. Keep every shared `<script src="...?v=...">` tag's query string
+  bumped to the current release on every deploy — that's what makes
+  "Reload now" fetch the new file instead of a browser-cached old one.
 
 ## Known gaps / next steps
 - **No off-site backup** of the repo/data yet (top infra risk) — planned

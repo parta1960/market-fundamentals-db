@@ -21,6 +21,26 @@ scoping document; v1.0.0 is the first production (daily-updating, full-universe)
 - **v2.0.0** — Point-in-time index membership incl. removed/delisted companies
   (removes survivorship bias).
 
+## v1.26.0 — 2026-10-17
+
+- **Auto-update checker** (`docs/update-check.js`, loaded on every page). GitHub
+  Pages is static — there's no server push to a tab that's already open — so
+  this polls the tiny `version.js` file (cache-busted, every 5 min and on tab
+  focus) and compares the deployed `STOCKLAB_VERSION` against the one the
+  page loaded with. On a mismatch it shows a dismissible banner
+  ("StockLab vX.Y.Z is available · Reload now · later") instead of silently
+  leaving visitors on stale code or data. "Reload now" does a normal reload;
+  "later" suppresses that specific version for the rest of the tab's session
+  (`sessionStorage`), and re-prompts if a further deploy lands.
+- **Fixed stale cache-busting query strings.** The `?v=...` suffix on every
+  shared script tag (`gate.js`, `version.js`, `chat.js`, `menu.js`,
+  `stocklab.js`, `incomeflow.js`, `vendor/chart.umd.min.js`) had drifted out
+  of sync with the real release version on several pages (some still read
+  `?v=v1.23.0`), which meant a plain reload could keep serving a browser's
+  cached copy of those files indefinitely. All four pages now tag every
+  shared script with the current version, which is also what makes the new
+  "Reload now" button actually fetch the new code rather than a stale cache.
+
 ## v1.25.0 — 2026-08-21
 
 - **“How they make money” income-statement flow on every deep-dive page**
