@@ -1,7 +1,10 @@
 {
-  "date": "2026-10-08",
-  "prices_ok": 2495,
+  "date": "2026-10-28",
+  "prices_ok": 2626,
   "failed": {
-    "PSKY": "AVError: TIME_SERIES_DAILY_ADJUSTED/PSKY: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED."
+    "MSGS": "AVError: TIME_SERIES_DAILY_ADJUSTED/MSGS: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "CATX": "AVError: TIME_SERIES_DAILY_ADJUSTED/CATX: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "LAND": "AVError: TIME_SERIES_DAILY_ADJUSTED/LAND: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.",
+    "MPTI": "AVError: TIME_SERIES_DAILY_ADJUSTED/MPTI: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED."
   }
 }
