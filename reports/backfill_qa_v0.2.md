@@ -1,22 +1,24 @@
-# Full backfill QA report (v0.2) — 2026-11-01 14:50 UTC
+# Full backfill QA report (v0.2) — 2026-11-08 14:35 UTC
 
 - Universe size: **2993**
-- Completed tickers: **2987**
-- Failed tickers: **6**
+- Completed tickers: **2985**
+- Failed tickers: **8**
 - Run incomplete (budget hit): **False**
 
 ## EDGAR shares coverage
 
-- Tickers with 0 EDGAR share points: 31 ['DGICA', 'ELE', 'FRBA', 'GEF', 'GEF-B', 'GFL', 'GRDN', 'GTXI', 'HIFS', 'HOLX', 'IMKTA', 'JBS', 'MC', 'NAVI', 'NBN', 'NU', 'ODD', 'OZK', 'PAX', 'PDLI']
+- Tickers with 0 EDGAR share points: 28 ['DGICA', 'ELE', 'FRBA', 'GEF', 'GEF-B', 'GFL', 'GTXI', 'HIFS', 'HOLX', 'IMKTA', 'JBS', 'MC', 'NBN', 'NU', 'ODD', 'OZK', 'PAX', 'PDLI', 'PFBC', 'SBT']
 - META: **126** share points (v0.1 was META=0, XOM=7)
-- XOM: **15** share points (v0.1 was META=0, XOM=7)
+- XOM: **22** share points (v0.1 was META=0, XOM=7)
 
 ## Failures
 
 - ADRO: `AVError: TIME_SERIES_DAILY_ADJUSTED/ADRO: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 - AKE: `AVError: TIME_SERIES_DAILY_ADJUSTED/AKE: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 - DOMO: `AVError: TIME_SERIES_DAILY_ADJUSTED/DOMO: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
+- INDV: `AVError: TIME_SERIES_DAILY_ADJUSTED/INDV: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 - INH: `AVError: TIME_SERIES_DAILY_ADJUSTED/INH: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
+- MGPI: `AVError: TIME_SERIES_DAILY_ADJUSTED/MGPI: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 - MSGS: `AVError: TIME_SERIES_DAILY_ADJUSTED/MSGS: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 - P5N994: `AVError: TIME_SERIES_DAILY_ADJUSTED/P5N994: Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for TIME_SERIES_DAILY_ADJUSTED.`
 
@@ -25,9 +27,9 @@ Full per-ticker census: `reports/coverage_census_v0.2.csv`
 ## Aggregate coverage
 
 - Median AV quarters: 81
-- Tickers with >=40 quarters (10y): 2227/2987
-- Median price days: 4685
-- Median EDGAR share points: 232
+- Tickers with >=40 quarters (10y): 2239/2985
+- Median price days: 4690
+- Median EDGAR share points: 233
 
 ## CSCO validation vs Yahoo reference
 
